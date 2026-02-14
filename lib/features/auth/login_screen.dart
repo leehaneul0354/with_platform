@@ -4,8 +4,8 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/assets.dart';
 import '../../core/constants/test_accounts.dart';
-import '../../shared/widgets/with_illustration.dart';
 import 'find_password_screen.dart';
 import 'signup_screen.dart';
 
@@ -142,17 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 16),
-                  const WithIllustrationFull(size: 120),
-                  const SizedBox(height: 24),
-                  const Text(
-                    '안녕하세요, 위드입니다 :)',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  _LoginMascotBubble(),
                   const SizedBox(height: 32),
                   TextField(
                     controller: _idController,
@@ -321,6 +311,63 @@ class _LoginPasswordHint extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 로그인 상단: mascot1.jpg + 말풍선 "반가워요! 다시 오셨군요" (이미지 가로 30% 이하)
+class _LoginMascotBubble extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final maxW = (width * kMaxImageWidthRatio).clamp(80.0, 120.0);
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: maxW,
+              child: Image.asset(
+                WithMascots.login,
+                fit: BoxFit.contain,
+                errorBuilder: (_, e, st) => Icon(
+                  Icons.sentiment_satisfied_alt,
+                  size: maxW,
+                  color: AppColors.yellow,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '반가워요!\n다시 오셨군요',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

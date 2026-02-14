@@ -47,6 +47,7 @@ class MyPageScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 _buildStatsSection(),
+                _buildDonationEmptyState(context),
                 const SizedBox(height: 16),
                 _buildWithPayCard(),
                 const SizedBox(height: 24),
@@ -94,11 +95,11 @@ class MyPageScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _profileCircle(56, isFirst: true, user: user),
+                  _profileCircle(context, 56, isFirst: true, user: user),
                   const SizedBox(width: 8),
-                  _profileCircle(40, isFirst: false),
+                  _profileCircle(context, 40, isFirst: false),
                   const SizedBox(width: 8),
-                  _profileCircle(40, isFirst: false),
+                  _profileCircle(context, 40, isFirst: false),
                 ],
               ),
               const SizedBox(width: 14),
@@ -154,12 +155,12 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  Widget _profileCircle(double size, {bool isFirst = false, UserModel? user}) {
+  Widget _profileCircle(BuildContext context, double size, {bool isFirst = false, UserModel? user}) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: isFirst ? AppColors.yellow : AppColors.inactiveBackground,
+        color: isFirst ? AppColors.yellow.withValues(alpha: 0.3) : AppColors.inactiveBackground,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -172,7 +173,7 @@ class MyPageScreen extends StatelessWidget {
       child: isFirst
           ? ClipOval(
               child: Image.asset(
-                WithMascots.yellowSmile,
+                WithMascots.profileDefault,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => const Icon(
                   Icons.sentiment_satisfied_alt,
@@ -182,6 +183,42 @@ class MyPageScreen extends StatelessWidget {
               ),
             )
           : null,
+    );
+  }
+
+  /// 후원내역이 비었을 때 시무룩한 마스코트 + "아직 소식이 없어요"
+  Widget _buildDonationEmptyState(BuildContext context) {
+    const donationCount = 0;
+    if (donationCount > 0) return const SizedBox.shrink();
+    final maxW = (MediaQuery.sizeOf(context).width * kMaxImageWidthRatio).clamp(72.0, 100.0);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Center(
+        child: Column(
+          children: [
+            SizedBox(
+              width: maxW,
+              child: Image.asset(
+                WithMascots.sad,
+                fit: BoxFit.contain,
+                errorBuilder: (_, e, st) => Icon(
+                  Icons.sentiment_dissatisfied_outlined,
+                  size: maxW,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '아직 소식이 없어요',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -61,7 +61,8 @@ flutter:
   uses-material-design: true
 
   # 에셋 경로는 프로젝트 루트 기준. 코드에서는 'assets/images/xxx' 만 사용 (assets/assets/ 중복 금지).
-  # assets/images/ 폴더에 mascot_p.png 등 이미지 파일이 있어야 함.
+  # 파일명은 공백 없이 언더바 사용 (예: mascot_p.png). 아래 이미지들이 assets/images/에 있어야 함.
+  # image_48dd69.png, mascot_p.png, mascot_y.png, mascot1.jpg, mascot1.png, mascot3.png, mascots.jpg, mascot_sad.png
   assets:
     - assets/images/
 
