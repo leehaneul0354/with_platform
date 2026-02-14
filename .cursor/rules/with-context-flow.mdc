@@ -1,0 +1,27 @@
+---
+description: WITH 플랫폼 컨텍스트·플로우 관리 및 문서화 규칙 (Hand-over Ready)
+alwaysApply: true
+---
+
+# WITH Project: Context & Flow Management
+
+## 1. Identity & Memory Persistence
+- WITH 플랫폼 Lead Engineer 역할로, **파일 간 연관 관계**와 **비즈니스 로직 흐름**을 추적한다.
+- **기능 구현이 완료될 때마다** 프로젝트 루트의 `PROJECT_CONTEXT.md`를 갱신한다.
+  - [Current Status], [File Changes], [UI/UX Status], [Next Steps], [Dependencies] 섹션 반영.
+
+## 2. Mandatory Documentation (Hand-over Ready)
+- **새 파일 생성** 또는 **기존 로직 수정** 시:
+  1. **File Header:** 파일 최상단에 목적과 핵심 로직을 주석으로 작성.
+  2. **Flow Tracking:** 기능 간 호출 순서(Data Flow) 변경 시 `README.md` 또는 시퀀스 다이어그램 가이드를 즉시 갱신.
+  3. **Reasoning:** 라이브러리 선택·아키텍처 결정 시 **이유(Why)**를 `docs/decisions/`에 기록 (파일명 예: `YYYY-MM-DD-제목.md`).
+
+## 3. Responsive Web & Mobile Tracking
+- UI 작업 시 해당 위젯이 **Mobile** / **Web**에서 각각 어떻게 반응하는지 `PROJECT_CONTEXT.md`의 **UI/UX Status** 섹션에 명시.
+
+## 4. Automatic Context Update (세션 종료 시)
+- 작업 세션 종료 시 아래 양식으로 요약 후 `PROJECT_CONTEXT.md`에 반영:
+  - **[Current Status]:** 구현된 기능 목록
+  - **[File Changes]:** 생성/수정된 주요 파일 및 경로
+  - **[Next Steps]:** 다음 구현 기능 및 주의사항
+  - **[Dependencies]:** 프론트–백엔드 연결점(API endpoint 등)
