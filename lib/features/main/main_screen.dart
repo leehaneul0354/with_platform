@@ -65,7 +65,6 @@ class _MainScreenState extends State<MainScreen> {
       if (!mounted) return;
       await AuthRepository.instance.ensureAuthSync();
       if (!mounted) return;
-      // CHECK: 페이지 연결성 확인 완료 — 관리자 계정이면 메인이 아닌 관리자 대시보드로 즉시 리다이렉션
       if (AuthRepository.instance.currentUser?.isAdmin == true) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const AdminMainScreen()),
@@ -74,7 +73,6 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  /// CHECK: 페이지 연결성 확인 완료 — 비로그인 시 로그인 화면으로 이동, 성공 시 이전 위치(Main)로 복귀
   void _navigateToLogin() {
     final navigator = Navigator.of(context);
     navigator.push(
@@ -90,7 +88,6 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  /// CHECK: 페이지 연결성 확인 완료 — 회원가입 후 Main으로 복귀, setState로 UI 갱신
   void _navigateToSignup() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SignupScreen()),
@@ -108,88 +105,88 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
       child: Scaffold(
-      appBar: WithHeader(
-        onPersonTap: _navigateToLogin,
-      ),
-      body: IndexedStack(
-        index: _bottomIndex,
-        children: [
-          Column(
-            children: [
-              if (_currentNickname != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '안녕하세요, $_currentNickname님',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF333333),
+        appBar: WithHeader(
+          onPersonTap: _navigateToLogin,
+        ),
+        body: IndexedStack(
+          index: _bottomIndex,
+          children: [
+            Column(
+              children: [
+                if (_currentNickname != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '안녕하세요, $_currentNickname님',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF333333),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              const DonationProgressCard(),
-              Expanded(
-                child: ResponsiveLayout(
-                  mobileChild: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TodayFeedToggle(
-                        isFeedSelected: _isFeedSelected,
-                        onSelectionChanged: (v) => setState(() => _isFeedSelected = v),
-                      ),
-                      Expanded(
-                        child: MainContentMobile(
+                const DonationProgressCard(),
+                Expanded(
+                  child: ResponsiveLayout(
+                    mobileChild: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TodayFeedToggle(
                           isFeedSelected: _isFeedSelected,
-                          displayNickname: _currentNickname,
+                          onSelectionChanged: (v) => setState(() => _isFeedSelected = v),
                         ),
-                      ),
-                    ],
-                  ),
-                  desktopChild: MainContentDesktop(
-                    isFeedSelected: _isFeedSelected,
-                    onToggleChanged: (v) => setState(() => _isFeedSelected = v),
-                    displayNickname: _currentNickname,
+                        Expanded(
+                          child: MainContentMobile(
+                            isFeedSelected: _isFeedSelected,
+                            displayNickname: _currentNickname,
+                          ),
+                        ),
+                      ],
+                    ),
+                    desktopChild: MainContentDesktop(
+                      isFeedSelected: _isFeedSelected,
+                      onToggleChanged: (v) => setState(() => _isFeedSelected = v),
+                      displayNickname: _currentNickname,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          Center(
-            child: Text(
-              '추가 기능 준비 중',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
+              ],
+            ),
+            Center(
+              child: Text(
+                '추가 기능 준비 중',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
-          ),
-          MyPageScreen(
-            onLoginTap: _navigateToLogin,
-            onSignupTap: _navigateToSignup,
-          ),
-        ],
-      ),
-      bottomNavigationBar: ResponsiveHelper.isMobile(context)
-          ? BottomNavBar(
-              currentIndex: _bottomIndex,
-              onTabSelected: _onBottomTab,
-              isLoggedIn: _isLoggedIn,
-            )
-          : null,
-      floatingActionButton: ResponsiveHelper.isMobile(context)
-          ? null
-          : Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: ElevatedButton.icon(
-                onPressed: _onDonateTap,
-                icon: const Icon(Icons.favorite_border),
-                label: const Text('나도 후원하기'),
-              ),
+            MyPageScreen(
+              onLoginTap: _navigateToLogin,
+              onSignupTap: _navigateToSignup,
             ),
+          ],
+        ),
+        bottomNavigationBar: ResponsiveHelper.isMobile(context)
+            ? BottomNavBar(
+                currentIndex: _bottomIndex,
+                onTabSelected: _onBottomTab,
+                isLoggedIn: _isLoggedIn,
+              )
+            : null,
+        floatingActionButton: ResponsiveHelper.isMobile(context)
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: ElevatedButton.icon(
+                  onPressed: _onDonateTap,
+                  icon: const Icon(Icons.favorite_border),
+                  label: const Text('나도 후원하기'),
+                ),
+              ),
       ),
     );
   }

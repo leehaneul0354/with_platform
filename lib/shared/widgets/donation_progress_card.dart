@@ -20,7 +20,6 @@ class DonationProgressCard extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // 메인 카드
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -69,7 +68,6 @@ class DonationProgressCard extends StatelessWidget {
             ],
           ),
         ),
-        // 입체감용 노란색 스마일/반원 (오른쪽 하단)
         Positioned(
           right: 16,
           bottom: -12,

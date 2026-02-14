@@ -14,7 +14,6 @@ class MainContentMobile extends StatelessWidget {
   });
 
   final bool isFeedSelected;
-  /// 로그인한 사용자 닉네임 (있으면 첫 번째 피드 카드 작성자명으로 사용)
   final String? displayNickname;
 
   static List<({int rank, String name, String amountString})> get _sampleRankList => [
