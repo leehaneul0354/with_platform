@@ -5,14 +5,17 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/feed_card.dart';
 import '../../../shared/widgets/donor_rank_list.dart';
 
-/// 모바일: 투데이/피드 토글에 따라 스크롤 리스트 표시
+/// 모바일: 투데이/피드 토글에 따라 스크롤 리스트 표시. 로그인 시 첫 피드 작성자에 닉네임 표시.
 class MainContentMobile extends StatelessWidget {
   const MainContentMobile({
     super.key,
     required this.isFeedSelected,
+    this.displayNickname,
   });
 
   final bool isFeedSelected;
+  /// 로그인한 사용자 닉네임 (있으면 첫 번째 피드 카드 작성자명으로 사용)
+  final String? displayNickname;
 
   static List<({int rank, String name, String amountString})> get _sampleRankList => [
         (rank: 1, name: '도우미 사는 인생 🎗️', amountString: '135,000원'),
@@ -23,16 +26,17 @@ class MainContentMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isFeedSelected) {
+      final firstAuthor = displayNickname ?? '정현태';
       return ListView(
         padding: const EdgeInsets.only(bottom: 24),
-        children: const [
+        children: [
           FeedCard(
-            authorName: '정현태',
+            authorName: firstAuthor,
             likeCount: 333,
             commentCount: 21,
             bodyText: '함께 나누는 희망으로 소중한 마음을 전해주세요.',
           ),
-          FeedCard(
+          const FeedCard(
             authorName: 'WITH',
             likeCount: 120,
             commentCount: 8,

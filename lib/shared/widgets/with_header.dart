@@ -10,6 +10,7 @@ class WithHeader extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.showBackButton = false,
     this.onNotificationTap,
+    this.onPersonTap,
   });
 
   /// true면 왼쪽에 뒤로가기 버튼 표시
@@ -18,20 +19,31 @@ class WithHeader extends StatelessWidget implements PreferredSizeWidget {
   /// 알림 아이콘 탭 콜백 (null이면 아이콘만 표시)
   final VoidCallback? onNotificationTap;
 
+  /// 좌측 상단 사람 아이콘 탭 시 로그인 화면 등으로 이동 (null이면 표시 안 함)
+  final VoidCallback? onPersonTap;
+
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
+    Widget? leading;
+    if (showBackButton) {
+      leading = IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => Navigator.of(context).maybePop(),
+      );
+    } else if (onPersonTap != null) {
+      leading = IconButton(
+        icon: const Icon(Icons.person_outline),
+        onPressed: onPersonTap,
+      );
+    }
+
     return AppBar(
       backgroundColor: AppColors.yellow,
       elevation: 0,
-      leading: showBackButton
-          ? IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).maybePop(),
-            )
-          : null,
+      leading: leading,
       title: const Text(
         'WITH',
         style: TextStyle(

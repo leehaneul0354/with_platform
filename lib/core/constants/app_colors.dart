@@ -22,4 +22,7 @@ abstract class AppColors {
 
   /// 비활성 토글/버튼 배경
   static const Color inactiveBackground = Color(0xFFE0E0E0);
+
+  /// 로그인/회원가입 버튼용 다크 그레이 (이미지 디자인 반영)
+  static const Color buttonDark = Color(0xFF424242);
 }

@@ -1,24 +1,41 @@
-// 목적: WITH 플랫폼 앱 진입점. 테마 적용 후 메인 화면으로 라우팅.
-// 흐름: runApp(WithApp) → MaterialApp(theme: AppTheme) → home: MainScreen.
-
 import 'package:flutter/material.dart';
-import 'core/theme/app_theme.dart';
-import 'features/main/main_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:with_platform/core/auth/auth_repository.dart';
+import 'package:with_platform/features/splash/splash_screen.dart';
+import 'package:with_platform/shared/widgets/app_error_page.dart';
 
-void main() {
-  runApp(const WithApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await AuthRepository.instance.loadCurrentUser();
+
+  runApp(const MyApp());
 }
 
-/// WITH 플랫폼 루트 위젯
-class WithApp extends StatelessWidget {
-  const WithApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'WITH - 신뢰 기반 의료 복지 플랫폼',
-      theme: AppTheme.lightTheme,
-      home: const MainScreen(),
+      title: 'WITH Platform',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.orange,
+        useMaterial3: true,
+      ),
+      // CHECK: 페이지 연결성 확인 완료 — 진입점은 Splash → MainScreen(동기화 후 전환)
+      home: const SplashScreen(),
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (_) => const AppErrorPage(message: '잘못된 경로입니다.'),
+        );
+      },
     );
   }
 }

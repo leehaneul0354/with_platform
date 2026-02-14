@@ -6,16 +6,18 @@ import '../../../shared/widgets/feed_card.dart';
 import '../../../shared/widgets/donor_rank_list.dart';
 import '../../../shared/widgets/today_feed_toggle.dart';
 
-/// 데스크톱: 좌측 피드/투데이, 우측 순위 리스트
+/// 데스크톱: 좌측 피드/투데이, 우측 순위 리스트. 로그인 시 첫 피드 작성자에 닉네임 표시.
 class MainContentDesktop extends StatelessWidget {
   const MainContentDesktop({
     super.key,
     required this.isFeedSelected,
     required this.onToggleChanged,
+    this.displayNickname,
   });
 
   final bool isFeedSelected;
   final ValueChanged<bool> onToggleChanged;
+  final String? displayNickname;
 
   static List<({int rank, String name, String amountString})> get _sampleRankList => [
         (rank: 1, name: '도우미 사는 인생 🎗️', amountString: '135,000원'),
@@ -40,8 +42,8 @@ class MainContentDesktop extends StatelessWidget {
                   onSelectionChanged: onToggleChanged,
                 ),
                 if (isFeedSelected) ...[
-                  const FeedCard(
-                    authorName: '정현태',
+                  FeedCard(
+                    authorName: displayNickname ?? '정현태',
                     likeCount: 333,
                     commentCount: 21,
                     bodyText: '함께 나누는 희망으로 소중한 마음을 전해주세요.',
