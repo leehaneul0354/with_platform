@@ -1,8 +1,9 @@
 // 목적: 현재 후원 금액을 보여주는 분홍색 라운드 카드 (입체감 Stack).
-// 흐름: 메인 화면 상단 카드로 사용, 금액은 상수 또는 추후 API 연동.
+// 흐름: 메인 화면 상단 카드로 사용, 금액은 상수 또는 추후 API 연동. 우측 하단은 반달 마스코트(둥근 정사각형).
 
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/assets.dart';
 
 /// 현재 후원 진행상황 카드 (입체감용 Stack 포함)
 class DonationProgressCard extends StatelessWidget {
@@ -75,8 +76,7 @@ class DonationProgressCard extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.yellow,
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.1),
@@ -85,10 +85,22 @@ class DonationProgressCard extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.sentiment_satisfied_alt,
-              color: AppColors.textPrimary,
-              size: 32,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                WithMascots.cardMascot,
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: AppColors.yellow,
+                  child: const Icon(
+                    Icons.sentiment_satisfied_alt,
+                    color: AppColors.textPrimary,
+                    size: 32,
+                  ),
+                ),
+              ),
             ),
           ),
         ),

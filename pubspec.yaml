@@ -60,11 +60,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # 에셋 경로는 프로젝트 루트 기준. 코드에서는 'assets/images/xxx' 만 사용 (assets/assets/ 중복 금지).
-  # 파일명은 공백 없이 언더바 사용 (예: mascot_p.png). 아래 이미지들이 assets/images/에 있어야 함.
+  # 에셋: 루트 images/ 사용 시 Flutter 웹 빌드가 build/web/assets/images/ 로 출력해 assets/assets/ 중복 404 방지.
+  # 파일명은 공백 없이 언더바 사용 (예: mascot_p.png). 이미지 파일은 images/ 폴더에 둠.
   # image_48dd69.png, mascot_p.png, mascot_y.png, mascot1.jpg, mascot1.png, mascot3.png, mascots.jpg, mascot_sad.png
   assets:
-    - assets/images/
+    - images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

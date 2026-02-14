@@ -31,7 +31,8 @@
 | `lib/main.dart` | 앱 진입점. loadCurrentUser 후 WithApp → MainScreen |
 | `lib/core/constants/app_colors.dart` | 전역 색상 상수 AppColors (yellow/coral/textPrimary 등) |
 | `lib/core/constants/admin_account.dart` | 관리자 계정 상수 AdminAccount (id: admin, password: admin0000) |
-| `lib/core/constants/assets.dart` | WithMascots(마스코트 이미지 경로). 로딩·프로필·후원 완료 등 활용 |
+| `lib/core/constants/assets.dart` | WithMascots(마스코트 이미지 경로). `images/xxx` 사용 → 웹 빌드 시 build/web/assets/images/ 로 출력 |
+| `images/` (루트) | 에셋 이미지 폴더. pubspec `images/` 등록. mascot_p.png, image_48dd69.png 등 배치 |
 | `lib/core/auth/user_model.dart` | UserModel, UserType, MemberStatus. joinedAt/status/trustScore/isVerified, copyWith |
 | `lib/core/auth/auth_repository.dart` | AuthRepository(싱글톤). getUsers/updateUser, SharedPreferences 저장 |
 | `lib/core/constants/responsive_breakpoints.dart` | ResponsiveBreakpoints (mobileMax 600px) |
@@ -76,7 +77,8 @@
 - 로그아웃 버튼(마이페이지 또는 헤더 메뉴)
 - 후원하기 플로우 화면
 - API 연동 (후원 금액, 피드 목록, 순위 목록)
-- 이미지 에셋 및 네트워크 이미지 URL 연동
+- **이미지 에셋:** `images/` 폴더에 실제 파일 추가 (mascot_p.png, image_48dd69.png 등). 경로는 `images/파일명`으로 통일해 웹 빌드 시 `assets/assets/` 중복 404 방지됨.
+- 네트워크 이미지 URL 연동
 
 ---
 
@@ -120,4 +122,4 @@
 
 ---
 
-*마지막 갱신: 관리자 대시보드(AdminMainScreen, 회원 상세, Trust Score·인증 관리), 접근 제어·가드 반영.*
+*마지막 갱신: 이미지 경로 수정(assets/assets/ 404 해결 → 루트 images/ 사용), Firebase 프로젝트 고정(with-platform-ccc06), 웹 릴리스 빌드·배포 완료.*

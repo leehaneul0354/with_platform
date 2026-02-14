@@ -24,15 +24,15 @@ class TodayFeedToggle extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _ToggleButton(
-            label: '투데이',
-            isSelected: !isFeedSelected,
-            onTap: () => onSelectionChanged(false),
-          ),
-          const SizedBox(width: 12),
-          _ToggleButton(
             label: '피드',
             isSelected: isFeedSelected,
             onTap: () => onSelectionChanged(true),
+          ),
+          const SizedBox(width: 12),
+          _ToggleButton(
+            label: '투데이',
+            isSelected: !isFeedSelected,
+            onTap: () => onSelectionChanged(false),
           ),
         ],
       ),
