@@ -121,6 +121,41 @@ Stream<QuerySnapshot<Map<String, dynamic>>> donationsStreamByUser(String userId)
       .snapshots();
 }
 
+/// 최근 후원 내역 스트림 (투데이 베스트 후원자 집계용). 최근 N건 조회.
+Stream<QuerySnapshot<Map<String, dynamic>>> recentDonationsStream({int limit = 80}) {
+  return _firestore
+      .collection(FirestoreCollections.donations)
+      .orderBy(DonationKeys.createdAt, descending: true)
+      .limit(limit)
+      .snapshots();
+}
+
+/// 스냅샷에서 userId별 금액 합계 후 금액 내림차순 상위 N명 반환
+List<({String userId, int totalAmount})> topDonorsFromSnapshot(
+  QuerySnapshot<Object?> snapshot, {
+  int topN = 5,
+}) {
+  final map = <String, int>{};
+  for (final doc in snapshot.docs) {
+    final d = doc.data() as Map<String, dynamic>?;
+    if (d == null) continue;
+    final uid = d[DonationKeys.userId]?.toString();
+    final amount = (d[DonationKeys.amount] is int)
+        ? d[DonationKeys.amount] as int
+        : (d[DonationKeys.amount] is num)
+            ? (d[DonationKeys.amount] as num).toInt()
+            : 0;
+    if (uid != null && uid.isNotEmpty) {
+      map[uid] = (map[uid] ?? 0) + amount;
+    }
+  }
+  final list = map.entries
+      .map((e) => (userId: e.key, totalAmount: e.value))
+      .toList()
+    ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+  return list.take(topN).map((e) => (userId: e.userId, totalAmount: e.totalAmount)).toList();
+}
+
 /// WITH Pay 잔액 차감 + 후원 기록·통계·게시물 금액을 Transaction으로 일괄 처리.
 /// 잔액 부족 시 false, 성공 시 true.
 Future<bool> processPaymentWithWithPay({
@@ -155,6 +190,18 @@ Future<bool> processPaymentWithWithPay({
         debugPrint('[WITHPAY] : 잔액 부족 — current=$current, need=$amount');
         return false;
       }
+      final postSnap = await tx.get(postRef);
+      final postData = postSnap.exists ? (postSnap.data() ?? {}) : {};
+      final currentAmount = (postData[FirestorePostKeys.currentAmount] is int)
+          ? (postData[FirestorePostKeys.currentAmount] as int)
+          : 0;
+      final goalAmount = (postData[FirestorePostKeys.goalAmount] is int)
+          ? (postData[FirestorePostKeys.goalAmount] as int)
+          : (postData[FirestorePostKeys.goalAmount] is num)
+              ? (postData[FirestorePostKeys.goalAmount] as num).toInt()
+              : 0;
+      final newAmount = currentAmount + amount;
+
       tx.update(userRef, {
         FirestoreUserKeys.withPayBalance: FieldValue.increment(-amount),
       });
@@ -172,6 +219,10 @@ Future<bool> processPaymentWithWithPay({
       tx.update(postRef, {
         FirestorePostKeys.currentAmount: FieldValue.increment(amount),
       });
+      if (goalAmount > 0 && newAmount >= goalAmount) {
+        tx.update(postRef, { FirestorePostKeys.status: FirestorePostKeys.completed });
+        debugPrint('[WITHPAY] : 목표 달성 — postId=$postId, status=completed');
+      }
       debugPrint('[WITHPAY] : Transaction 내 잔액 차감·후원 기록·통계·post 반영 완료');
       return true;
     });

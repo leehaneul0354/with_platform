@@ -132,6 +132,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final title = widget.data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
     final content = widget.data[FirestorePostKeys.content]?.toString() ?? '';
     final patientName = widget.data[FirestorePostKeys.patientName]?.toString() ?? '-';
+    final fundingType = widget.data[FirestorePostKeys.fundingType]?.toString() ?? FirestorePostKeys.fundingTypeMoney;
+    final usagePurpose = (widget.data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim();
     final imageUrls = widget.data[FirestorePostKeys.imageUrls] is List
         ? (widget.data[FirestorePostKeys.imageUrls] as List).cast<String>()
         : <String>[];
@@ -230,6 +232,35 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 height: 1.6,
                               ),
                             ),
+                            if (usagePurpose.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.coral.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.coral.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.savings_outlined, size: 20, color: AppColors.coral),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        fundingType == FirestorePostKeys.fundingTypeGoods
+                                            ? '후원은 이렇게 사용됩니다: $usagePurpose'
+                                            : '후원금은 이렇게 사용됩니다: $usagePurpose',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 32),
                           ],
                         ),

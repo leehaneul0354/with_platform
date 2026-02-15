@@ -71,3 +71,57 @@ Future<bool> deletePost(String postId) async {
     return false;
   }
 }
+
+/// 감사 편지(thank_you_posts) 문서 삭제. 관리자 권한 확인 후 삭제.
+Future<bool> deleteThankYouPost(String docId) async {
+  try {
+    final allowed = await _ensureAdmin();
+    if (!allowed) return false;
+    await FirebaseFirestore.instance
+        .collection(FirestoreCollections.thankYouPosts)
+        .doc(docId)
+        .delete();
+    debugPrint('[SYSTEM] : [ADMIN] deleteThankYouPost 완료 — docId=$docId');
+    return true;
+  } catch (e, st) {
+    debugPrint('[SYSTEM] : [ADMIN] deleteThankYouPost 실패 — $e');
+    debugPrint('[SYSTEM] : $st');
+    return false;
+  }
+}
+
+/// 감사 편지 승인: today_thank_you에 문서 추가 후 thank_you_posts 상태를 approved로 변경.
+Future<bool> approveThankYouPost(String docId, Map<String, dynamic> data) async {
+  try {
+    final allowed = await _ensureAdmin();
+    if (!allowed) return false;
+    final batch = FirebaseFirestore.instance.batch();
+    final todayRef = FirebaseFirestore.instance.collection(FirestoreCollections.todayThankYou).doc();
+    final Map<String, dynamic> copy = {
+      ThankYouPostKeys.title: data[ThankYouPostKeys.title],
+      ThankYouPostKeys.content: data[ThankYouPostKeys.content],
+      ThankYouPostKeys.imageUrls: data[ThankYouPostKeys.imageUrls],
+      ThankYouPostKeys.patientId: data[ThankYouPostKeys.patientId],
+      ThankYouPostKeys.patientName: data[ThankYouPostKeys.patientName],
+      ThankYouPostKeys.postId: data[ThankYouPostKeys.postId],
+      ThankYouPostKeys.postTitle: data[ThankYouPostKeys.postTitle],
+      ThankYouPostKeys.type: data[ThankYouPostKeys.type] ?? FirestorePostKeys.typeThanks,
+      ThankYouPostKeys.createdAt: FieldValue.serverTimestamp(),
+    };
+    if (data[ThankYouPostKeys.usagePurpose] != null) {
+      copy[ThankYouPostKeys.usagePurpose] = data[ThankYouPostKeys.usagePurpose];
+    }
+    batch.set(todayRef, copy);
+    batch.update(
+      FirebaseFirestore.instance.collection(FirestoreCollections.thankYouPosts).doc(docId),
+      {ThankYouPostKeys.status: ThankYouPostKeys.approved},
+    );
+    await batch.commit();
+    debugPrint('[SYSTEM] : [ADMIN] approveThankYouPost 완료 — docId=$docId');
+    return true;
+  } catch (e, st) {
+    debugPrint('[SYSTEM] : [ADMIN] approveThankYouPost 실패 — $e');
+    debugPrint('[SYSTEM] : $st');
+    return false;
+  }
+}

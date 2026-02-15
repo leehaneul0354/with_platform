@@ -126,8 +126,27 @@ class StoryFeedCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if ((data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        Chip(
+                          label: Text(
+                            data[FirestorePostKeys.usagePurpose].toString().trim(),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          backgroundColor: AppColors.coral.withValues(alpha: 0.15),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 12),
-                  _ProgressBarSkeleton(),
+                  _buildProgressOrGoods(data),
                 ],
               ),
             ),
@@ -135,6 +154,79 @@ class StoryFeedCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildProgressOrGoods(Map<String, dynamic> data) {
+    final fundingType = data[FirestorePostKeys.fundingType]?.toString() ?? FirestorePostKeys.fundingTypeMoney;
+    final usagePurpose = (data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim();
+    if (fundingType == FirestorePostKeys.fundingTypeGoods) {
+      final needed = data[FirestorePostKeys.neededItems]?.toString() ?? '';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (usagePurpose.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '사용 목적: $usagePurpose',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          Text(
+            '후원물품',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          if (needed.isNotEmpty)
+            Text(
+              needed,
+              style: const TextStyle(fontSize: 12, color: AppColors.coral, fontWeight: FontWeight.w500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+      );
+    }
+    final current = _toInt(data[FirestorePostKeys.currentAmount]);
+    final goal = _toInt(data[FirestorePostKeys.goalAmount]);
+    final progress = goal > 0 ? (current / goal).clamp(0.0, 1.0) : 0.0;
+    final percent = goal > 0 ? ((current / goal) * 100).round() : 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '후원 진행',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            Text(
+              '$percent%',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.coral),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 6,
+            backgroundColor: AppColors.inactiveBackground,
+            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.coral),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static int _toInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v != null) return int.tryParse(v.toString()) ?? 0;
+    return 0;
   }
 
   Widget _placeholderImage() {
@@ -148,37 +240,3 @@ class StoryFeedCard extends StatelessWidget {
   }
 }
 
-/// 진행 상황 바 뼈대 (추후 후원 진행률 등 연동)
-class _ProgressBarSkeleton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '현재까지의 흐름',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            Text(
-              '0%',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: 0,
-            minHeight: 6,
-            backgroundColor: AppColors.inactiveBackground,
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.coral),
-          ),
-        ),
-      ],
-    );
-  }
-}

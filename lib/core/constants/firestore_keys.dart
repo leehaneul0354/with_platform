@@ -9,6 +9,8 @@ class FirestoreCollections {
   static const String platformStats = 'platform_stats';
   static const String donations = 'donations';
   static const String recharges = 'recharges';
+  static const String thankYouPosts = 'thank_you_posts';
+  static const String todayThankYou = 'today_thank_you';
 }
 
 /// recharges 문서 필드 (충전 내역)
@@ -55,8 +57,44 @@ class FirestorePostKeys {
   static const String pending = 'pending';
   static const String approved = 'approved';
   static const String rejected = 'rejected';
-  /// 게시물별 누적 모금액 (후원 시 increment)
+  /// 목표 달성 시 자동 설정
+  static const String completed = 'completed';
+  /// 게시물별 누적 모금액 (후원 시 increment, 기본 0)
   static const String currentAmount = 'currentAmount';
+  /// 게시물별 목표 모금액 (후원금 유형 시)
+  static const String goalAmount = 'goalAmount';
+  /// 후원 유형: 'money'(후원금) | 'goods'(후원물품)
+  static const String fundingType = 'fundingType';
+  static const String fundingTypeMoney = 'money';
+  static const String fundingTypeGoods = 'goods';
+  /// 필요 물품 리스트 (후원물품 유형 시, 문자열)
+  static const String neededItems = 'neededItems';
+  /// 후원 사용 목적 (선택, 예: 치료비, 간병비, 보조기구 구입)
+  static const String usagePurpose = 'usagePurpose';
+  /// 게시물 유형: 'struggle'(투병 기록) | 'thanks'(감사 편지)
+  static const String type = 'type';
+  static const String typeStruggle = 'struggle';
+  static const String typeThanks = 'thanks';
+}
+
+/// thank_you_posts 문서 필드 (감사 편지 대기/승인)
+class ThankYouPostKeys {
+  ThankYouPostKeys._();
+  static const String title = 'title';
+  static const String content = 'content';
+  static const String imageUrls = 'imageUrls';
+  static const String patientId = 'patientId';
+  static const String patientName = 'patientName';
+  static const String postId = 'postId';
+  /// 연결된 게시물(투병 기록) 제목 — 관리자 리스트에서 문맥 표시용
+  static const String postTitle = 'postTitle';
+  static const String createdAt = 'createdAt';
+  static const String status = 'status';
+  static const String pending = 'pending';
+  static const String approved = 'approved';
+  static const String type = 'type';
+  /// 사용 목적(선택) — 있다면 관리자 카드에 표시
+  static const String usagePurpose = 'usagePurpose';
 }
 
 /// Firestore users 문서 필드 키. 코드 전반에서 이 상수만 사용할 것.

@@ -4,7 +4,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../features/post/post_detail_screen.dart';
 import 'story_feed_card.dart';
 
 /// 승인된 사연만 최신순으로 표시하는 피드. 빈 상태 시 안내 문구, 이미지 로딩 인디케이터 포함.
@@ -147,6 +149,105 @@ class ApprovedPostsFeedSliver extends StatelessWidget {
               },
               childCount: docs.length,
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 완료된 후원(명예의 전당) — status=='completed'만 표시
+class CompletedPostsSliver extends StatelessWidget {
+  const CompletedPostsSliver({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final stream = FirebaseFirestore.instance
+        .collection(FirestoreCollections.posts)
+        .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.completed)
+        .orderBy(FirestorePostKeys.createdAt, descending: true)
+        .limit(20)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError || snapshot.connectionState == ConnectionState.waiting) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+        return SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  '완료된 후원',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data() as Map<String, dynamic>? ?? {};
+                    final title = data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Card(
+                        clipBehavior: Clip.antiAlias,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => PostDetailScreen(postId: doc.id, data: data),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 160,
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle, size: 24, color: AppColors.coral),
+                                const SizedBox(height: 6),
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
           ),
         );
       },

@@ -23,26 +23,39 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  final _goalAmountController = TextEditingController();
+  final _neededItemsController = TextEditingController();
+  final _usagePurposeController = TextEditingController();
   final List<XFile> _pickedFiles = [];
   bool _isSubmitting = false;
+  String _fundingType = FirestorePostKeys.fundingTypeMoney;
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _goalAmountController.dispose();
+    _neededItemsController.dispose();
+    _usagePurposeController.dispose();
     super.dispose();
   }
 
+  static const int _maxImages = 3;
+
   Future<void> _pickImages() async {
+    if (_pickedFiles.length >= _maxImages) return;
     try {
       debugPrint('[SYSTEM] : 사진 선택 시작');
       final picker = ImagePicker();
       final list = await picker.pickMultiImage();
       if (list.isEmpty) return;
       setState(() {
-        _pickedFiles.addAll(list);
+        for (final f in list) {
+          if (_pickedFiles.length >= _maxImages) break;
+          _pickedFiles.add(f);
+        }
       });
-      debugPrint('[SYSTEM] : 사진 ${list.length}장 추가, 총 ${_pickedFiles.length}장');
+      debugPrint('[SYSTEM] : 사진 추가, 총 ${_pickedFiles.length}장');
     } catch (e) {
       debugPrint('[SYSTEM] : 사진 선택 오류 $e');
       if (mounted) {
@@ -66,20 +79,16 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
   bool get _canSubmit {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
-    return title.isNotEmpty &&
-        content.length >= 20 &&
-        _pickedFiles.isNotEmpty &&
-        !_isSubmitting;
+    if (title.isEmpty || content.length < 20 || _isSubmitting) return false;
+    if (_fundingType == FirestorePostKeys.fundingTypeMoney) {
+      final goal = int.tryParse(_goalAmountController.text.trim());
+      return goal != null && goal > 0;
+    }
+    return _neededItemsController.text.trim().isNotEmpty;
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_pickedFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('최소 1장의 사진을 첨부해 주세요.')),
-      );
-      return;
-    }
 
     final user = AuthRepository.instance.currentUser;
     if (user == null) {
@@ -102,7 +111,7 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
           debugPrint('[SYSTEM] : 이미지 ${i + 1}번 ImgBB 업로드 실패');
         }
       }
-      if (imageUrls.isEmpty) {
+      if (_pickedFiles.isNotEmpty && imageUrls.isEmpty) {
         setState(() => _isSubmitting = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -111,6 +120,10 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
         }
         return;
       }
+
+      final isMoney = _fundingType == FirestorePostKeys.fundingTypeMoney;
+      final goalAmount = isMoney ? (int.tryParse(_goalAmountController.text.trim()) ?? 0) : 0;
+      final neededItemsStr = isMoney ? '' : _neededItemsController.text.trim();
 
       final ref = FirebaseFirestore.instance.collection(FirestoreCollections.posts).doc();
       await ref.set({
@@ -121,13 +134,19 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
         FirestorePostKeys.patientName: user.nickname,
         FirestorePostKeys.createdAt: FieldValue.serverTimestamp(),
         FirestorePostKeys.status: FirestorePostKeys.pending,
+        FirestorePostKeys.type: FirestorePostKeys.typeStruggle,
+        FirestorePostKeys.fundingType: _fundingType,
+        FirestorePostKeys.goalAmount: goalAmount,
+        FirestorePostKeys.neededItems: neededItemsStr,
+        FirestorePostKeys.usagePurpose: _usagePurposeController.text.trim(),
+        FirestorePostKeys.currentAmount: 0,
       });
       debugPrint('[SYSTEM] : Firestore 게시물 저장 완료 docId=${ref.id}');
 
       setState(() => _isSubmitting = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('신청이 완료되었습니다. 승인 후 노출됩니다.')),
+          const SnackBar(content: Text('검토 후 업로드됩니다.')),
         );
         Navigator.of(context).pop(true);
       }
@@ -192,7 +211,75 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 20),
-                  const Text('사진 (최소 1장 필수)', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('후원 유형', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Radio<String>(
+                        value: FirestorePostKeys.fundingTypeMoney,
+                        groupValue: _fundingType,
+                        onChanged: (v) => setState(() => _fundingType = v!),
+                      ),
+                      const Text('후원금'),
+                      const SizedBox(width: 16),
+                      Radio<String>(
+                        value: FirestorePostKeys.fundingTypeGoods,
+                        groupValue: _fundingType,
+                        onChanged: (v) => setState(() => _fundingType = v!),
+                      ),
+                      const Text('후원물품'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _usagePurposeController,
+                    decoration: const InputDecoration(
+                      labelText: '후원 사용 목적 (선택)',
+                      hintText: '예: 치료비, 간병비, 재활비, 보조기구 구입',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  if (_fundingType == FirestorePostKeys.fundingTypeMoney) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _goalAmountController,
+                      decoration: const InputDecoration(
+                        labelText: '목표 금액 (원)',
+                        hintText: '예: 5000000',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (v) {
+                        if (_fundingType != FirestorePostKeys.fundingTypeMoney) return null;
+                        final n = int.tryParse(v?.trim() ?? '');
+                        if (n == null || n <= 0) return '목표 금액을 입력해주세요';
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                  if (_fundingType == FirestorePostKeys.fundingTypeGoods) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _neededItemsController,
+                      decoration: const InputDecoration(
+                        labelText: '필요 물품 리스트',
+                        hintText: '필요한 물품을 입력해주세요 (예: 밴드, 거즈, 소독약)',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      validator: (v) {
+                        if (_fundingType != FirestorePostKeys.fundingTypeGoods) return null;
+                        if (v == null || v.trim().isEmpty) return '필요 물품을 입력해주세요';
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Text('사진 (0~$_maxImages장, 선택 사항)', style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -232,9 +319,10 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
                           ],
                         );
                       }),
-                      GestureDetector(
-                        onTap: _isSubmitting ? null : _pickImages,
-                        child: Container(
+                      if (_pickedFiles.length < _maxImages)
+                        GestureDetector(
+                          onTap: _isSubmitting ? null : _pickImages,
+                          child: Container(
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(

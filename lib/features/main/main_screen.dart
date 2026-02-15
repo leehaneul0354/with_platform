@@ -14,6 +14,7 @@ import '../../shared/widgets/platform_stats_card.dart';
 import '../../shared/widgets/today_feed_toggle.dart';
 import '../../shared/widgets/bottom_navigation.dart';
 import '../../shared/widgets/donor_rank_list.dart';
+import '../../shared/widgets/today_thank_you_grid.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../auth/login_screen.dart';
@@ -22,7 +23,7 @@ import 'main_content_desktop.dart';
 import 'profile_edit_screen.dart';
 import 'main_content_mobile.dart';
 import 'my_page_screen.dart';
-import '../post/post_upload_screen.dart';
+import 'post_create_choice_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -49,6 +50,13 @@ class _MainScreenState extends State<MainScreen> {
         context,
         onLoginTap: _navigateToLogin,
         onSignupTap: _navigateToSignup,
+      );
+      return;
+    }
+    // 가운데 [+] 탭 → 게시글 작성 선택 페이지
+    if (index == 1) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
       );
       return;
     }
@@ -164,25 +172,23 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        if (_isFeedSelected)
-          const ApprovedPostsFeedSliver()
-        else
+        if (_isFeedSelected) ...[
+          const ApprovedPostsFeedSliver(),
+          const CompletedPostsSliver(),
+        ] else
           SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DonorRankList(
+                const DonorRankListFromFirestore(
                   title: '오늘의 베스트 후원자',
-                  items: const [
-                    (rank: 1, name: '도우미 사는 인생 🎗️', amountString: '135,000원'),
-                    (rank: 2, name: '후쿠후쿠미야자 🍎', amountString: '120,000원'),
-                    (rank: 3, name: '3월의벚꽃라면 🍜', amountString: '15,000원'),
-                  ],
+                  topN: 5,
                 ),
+                const SizedBox(height: 20),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    '한줄 후기 감사편지',
+                    '환자들의 감사편지',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -191,16 +197,11 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                SizedBox(
-                  height: 160,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      _ThanksCard('백혈병 수술비 후원자분들 감사합니다'),
-                      _ThanksCard('수술비 감사합니다'),
-                    ],
-                  ),
+                const TodayThankYouGrid(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.75,
+                  spacing: 8,
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                 ),
                 const SizedBox(height: 24),
               ],
@@ -300,59 +301,18 @@ class _MainScreenState extends State<MainScreen> {
                 isAdmin: _isAdmin,
               )
             : null,
-        floatingActionButton: ResponsiveHelper.isMobile(context) &&
-                AuthRepository.instance.currentUser?.type == UserType.patient
-            ? FloatingActionButton(
-                onPressed: () {
-                  debugPrint('[SYSTEM] : 환자 사연 신청 FAB 탭');
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PostUploadScreen()),
-                  );
-                },
-                backgroundColor: AppColors.yellow,
-                child: const Icon(Icons.add, color: AppColors.textPrimary),
-              )
-            : ResponsiveHelper.isMobile(context)
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: ElevatedButton.icon(
-                      onPressed: _onDonateTap,
-                      icon: const Icon(Icons.favorite_border),
-                      label: const Text('나도 후원하기'),
-                    ),
-                  ),
+        floatingActionButton: ResponsiveHelper.isMobile(context)
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: ElevatedButton.icon(
+                  onPressed: _onDonateTap,
+                  icon: const Icon(Icons.favorite_border),
+                  label: const Text('나도 후원하기'),
+                ),
+              ),
       ),
     );
   }
 }
 
-class _ThanksCard extends StatelessWidget {
-  const _ThanksCard(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 140,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE0E0E0),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.bottomLeft,
-      padding: const EdgeInsets.all(12),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Color(0xFF333333),
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
