@@ -1,6 +1,8 @@
 # WITH 플랫폼 이미지 에셋
 
-- **파일명**: 공백 없이 **언더바(_)** 사용 (예: `mascot p.png` → `mascot_p.png`).
-- **필요한 이미지**:  
-  `image_48dd69.png`, `mascot_p.png`, `mascot_y.png`, `mascot1.jpg`, `mascot1.png`, `mascot3.png`, `mascots.jpg`, `mascot_sad.png`  
-  (일부는 선택. 코드에서 없으면 기본 아이콘으로 대체)
+- **위치**: `assets/images/` (코드·pubspec 경로와 동일. 선행 슬래시 없음)
+- **파일명**: 공백 없이 **언더바(_)** 사용. **대소문자·확장자는 웹 서버에서 구분되므로 코드와 정확히 일치**해야 함.
+- **필요한 이미지** (실제 파일명 그대로):
+  - `mascot_yellow.png` (스플래시·로딩·메인 카드)
+  - `mascot_pink.png`, `mascot_green.png`
+  - `mascot1.jpg`, `mascot1.png`, `mascot3.png`, `mascots.jpg`

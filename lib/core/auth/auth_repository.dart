@@ -55,7 +55,7 @@ class AuthRepository {
   /// CHECK: 생년월일 기반 비밀번호 초기화 로직 적용 완료 — Firestore 필드명 'birthDate'
   Future<UserModel> signUp(UserModel user) async {
     try {
-      await _firestore.collection('users').doc(user.id).set({
+      await _firestore.collection(FirestoreCollections.users).doc(user.id).set({
         FirestoreUserKeys.userId: user.id,
         FirestoreUserKeys.id: user.id,
         FirestoreUserKeys.email: user.email,
@@ -80,7 +80,7 @@ class AuthRepository {
   /// (Firestore 기반. Firebase Auth updatePassword 사용 시 백엔드/Cloud Function 필요.)
   /// 저장값이 YYYY-MM-DD면 6자리 입력을 ISO로 변환해 비교, 레거시 6자리면 그대로 비교.
   Future<bool> resetPasswordByIdAndBirthDate(String id, String birthDate) async {
-    final doc = await _firestore.collection('users').doc(id).get();
+    final doc = await _firestore.collection(FirestoreCollections.users).doc(id).get();
     if (!doc.exists) return false;
     final data = doc.data()!;
     final storedBirth = (data[FirestoreUserKeys.birthDate]?.toString().trim() ?? '').trim();
@@ -91,7 +91,7 @@ class AuthRepository {
         ? (BirthDateUtil.yymmddToIso(inputTrimmed) == storedBirth)
         : (storedBirth == inputTrimmed);
     if (!match) return false;
-    await _firestore.collection('users').doc(id).update({FirestoreUserKeys.password: inputTrimmed});
+    await _firestore.collection(FirestoreCollections.users).doc(id).update({FirestoreUserKeys.password: inputTrimmed});
     return true;
   }
 
@@ -99,10 +99,10 @@ class AuthRepository {
   /// CHECK: 생년월일 기반 비밀번호 초기화 로직 적용 완료
   Future<void> seedTestAccountsWithBirthDateIfNeeded() async {
     final list = <(DocumentReference, String, String, String, String, String)>[
-      (_firestore.collection('users').doc('0000'), '0000', '0000', '테스트환자', 'patient', '000000'),
-      (_firestore.collection('users').doc('1111'), '1111', '1111', '테스트후원자', 'donor', '111101'),
-      (_firestore.collection('users').doc('2222'), '2222', '2222', '테스트일반', 'donor', '222202'),
-      (_firestore.collection('users').doc('admin'), 'admin', 'admin0000', '관리자', 'donor', '010101'),
+      (_firestore.collection(FirestoreCollections.users).doc('0000'), '0000', '0000', '테스트환자', 'patient', '000000'),
+      (_firestore.collection(FirestoreCollections.users).doc('1111'), '1111', '1111', '테스트후원자', 'donor', '111101'),
+      (_firestore.collection(FirestoreCollections.users).doc('2222'), '2222', '2222', '테스트일반', 'donor', '222202'),
+      (_firestore.collection(FirestoreCollections.users).doc('admin'), 'admin', 'admin0000', '관리자', 'donor', '010101'),
     ];
     final batch = _firestore.batch();
     for (final r in list) {
@@ -131,18 +131,18 @@ class AuthRepository {
 
   /// 기존 화면(Admin 등)에서 에러가 나지 않도록 함수 부활
   Future<List<UserModel>> getUsers() async {
-    final snapshot = await _firestore.collection('users').get();
+    final snapshot = await _firestore.collection(FirestoreCollections.users).get();
     return snapshot.docs.map((doc) => UserModel.fromJson(doc.data())).toList();
   }
 
   Future<void> updateUser(UserModel user) async {
-    await _firestore.collection('users').doc(user.id).update(user.toJson());
+    await _firestore.collection(FirestoreCollections.users).doc(user.id).update(user.toJson());
   }
 
   /// Firestore에서 최신 유저 문서를 불러와 동기화. 회원정보 수정 화면 등에서 실시간 반영용.
   Future<UserModel?> fetchUserFromFirestore(String userId) async {
     try {
-      final doc = await _firestore.collection('users').doc(userId).get();
+      final doc = await _firestore.collection(FirestoreCollections.users).doc(userId).get();
       final data = doc.data();
       if (doc.exists && data != null) {
         final user = UserModel.fromJson(data);
@@ -159,12 +159,12 @@ class AuthRepository {
   /// currentPassword가 저장된 값과 일치해야만 성공.
   Future<bool> updatePasswordReauth(String userId, String currentPassword, String newPassword) async {
     try {
-      final doc = await _firestore.collection('users').doc(userId).get();
+      final doc = await _firestore.collection(FirestoreCollections.users).doc(userId).get();
       final data = doc.data();
       if (!doc.exists || data == null) return false;
       final user = UserModel.fromJson(data);
       if (user.password != currentPassword) return false;
-      await _firestore.collection('users').doc(userId).update({FirestoreUserKeys.password: newPassword});
+      await _firestore.collection(FirestoreCollections.users).doc(userId).update({FirestoreUserKeys.password: newPassword});
       await setCurrentUser(user.copyWith(password: newPassword));
       return true;
     } catch (e) {
@@ -181,7 +181,7 @@ class AuthRepository {
     final testUser = TestAccounts.resolveTestUser(id, password);
     if (testUser != null) { await setCurrentUser(testUser); return testUser; }
 
-    final doc = await _firestore.collection('users').doc(id).get();
+    final doc = await _firestore.collection(FirestoreCollections.users).doc(id).get();
     final data = doc.data();
     if (doc.exists && data != null) {
       final user = UserModel.fromJson(data);

@@ -4,8 +4,8 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 
-/// 메인 비주얼 카드용 마스코트 이미지 경로 (assets/images/mascot_yellow.png → 프로젝트는 images/ 사용)
-const String _kCardMascotAsset = 'images/mascot_yellow.png';
+/// 메인 비주얼 카드용 마스코트 이미지 경로 (선행 슬래시 없음)
+const String _kCardMascotAsset = 'assets/images/mascot_yellow.png';
 
 /// 시안 코랄 핑크
 const Color _kCardCoral = Color(0xFFFF7E7E);
