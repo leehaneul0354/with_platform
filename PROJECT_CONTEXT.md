@@ -22,6 +22,7 @@
   - **환자 사연 신청:** ImgBB API로 이미지 업로드(`lib/core/services/imgbb_upload.dart`). `PostUploadScreen`: 제목 필수, 내용 20자·10줄 이상, 사진 최소 1장 검증 → [사진 업로드 → URL 확보 → Firestore `posts` 저장] 한 번에 로딩. Firestore `posts`: title, content, imageUrls, patientId, patientName, createdAt, status(기본 pending).
   - **관리자 승인:** `AdminDashboardScreen`에서 status=pending 게시물만 StreamBuilder 실시간 표시. 리스트: 제목/작성자/첨부사진 개수. 항목 탭 시 상세 다이얼로그(제목·내용·작성자·이미지) → 승인/반려 버튼으로 Firestore status 업데이트.
   - **메인 FAB:** `UserType.patient`일 때만 모바일 하단 FAB(+) 노출 → 탭 시 `PostUploadScreen` 이동. 마이페이지 관리자 전용 '관리자 대시보드' → `AdminDashboardScreen` 진입 시 admin 권한 체크 후 비관리자 즉시 퇴장.
+  - **WITH Pay:** Firestore `users` 문서에 `withPayBalance`(int, 기본 0). `WithPayService`: `rechargeWithPay(userId, amount, paymentMethod)`(Transaction·increment + `recharges` 컬렉션 내역 저장), `getWithPayBalance`, `withPayBalanceStream`, `balanceFromSnapshot`. 충전 UX: 금액 선택 → [충전하기] → 결제 수단 선택 BottomSheet(신용카드/카카오페이/네이버페이/토스) → `PaymentService.startPay()`(추후 Portone 등 PG 교체용) → 가상 결제 모달(PaymentWebViewMock: 2.5초 로딩 → "지문/비밀번호 입력" + [확인]) → 충전 처리 → RechargeSuccessScreen(초록 체크 + "충전이 완료되었습니다!" + 잔액 + [확인]) → 마이페이지 복귀 시 StreamBuilder로 잔액 최신화. Firestore `recharges`: userId, amount, paymentMethod, createdAt.
 
 ---
 
@@ -56,8 +57,14 @@
 | `lib/features/auth/signup_screen.dart` | SignupScreen (후원자/환자 선택 → 상세 정보 입력, AuthRepository.signUp) |
 | `lib/features/admin/admin_main_screen.dart` | AdminMainScreen. 가드, 헤더·로그아웃, 통계 카드, 회원 리스트·상세보기 |
 | `lib/features/admin/admin_member_detail_screen.dart` | 회원 상세: 기본정보·Trust Score·투병/후원 영역·인증 완료·저장 |
-| `lib/core/constants/firestore_keys.dart` | FirestorePostKeys (title, content, imageUrls, patientId, patientName, createdAt, status, pending/approved/rejected) |
+| `lib/core/constants/firestore_keys.dart` | FirestorePostKeys, FirestoreUserKeys, RechargeKeys, FirestoreCollections.recharges |
 | `lib/core/services/imgbb_upload.dart` | ImgBB API 업로드. imgbbApiKey, readAsBytes→base64→POST, data.url 반환. [SYSTEM] 로그 |
+| `lib/core/services/with_pay_service.dart` | getWithPayBalance, withPayBalanceStream, balanceFromSnapshot, rechargeWithPay(Transaction·recharges 저장) |
+| `lib/core/services/payment_method.dart` | PaymentMethod(card/kakao/naver/toss) enum |
+| `lib/core/services/payment_service.dart` | startPay(context, userId, amount, method) — PG 교체용 진입점, 현재 가상 결제 |
+| `lib/core/services/donation_service.dart` | processPaymentWithWithPay(Transaction: 잔액 차감·donations·stats·post), donationsStreamByUser |
+| `lib/features/main/with_pay_recharge_dialog.dart` | showWithPayRechargeDialog, RechargeScreen(충전 페이지) |
+| `lib/features/main/with_pay_payment_flow.dart` | showPaymentMethodSheet, PaymentWebViewMock, RechargeSuccessScreen |
 | `lib/features/post/post_upload_screen.dart` | 환자 사연 신청: 제목/내용(20자·10줄)/사진(최소 1장) 검증, 썸네일+삭제, 한 번에 로딩 후 Firestore 저장 |
 | `lib/features/admin/admin_dashboard_screen.dart` | pending 게시물 StreamBuilder, 제목/작성자/사진 수, 상세 다이얼로그·승인/반려 Firestore 업데이트 |
 
@@ -67,9 +74,10 @@
 
 - **Mobile**
   - 상단 노란 헤더(좌측 사람 아이콘→로그인, WITH 로고, 알림), 로그인 시 "안녕하세요, [닉네임]님", 분홍 후원 카드(입체감), 투데이/피드 토글
-  - 피드: 수직 스크롤 피드 카드 리스트
+  - 피드: 수직 스크롤 피드 카드 리스트. 카드 탭 → PostDetailScreen(후원하기 → WITH Pay 잔액 확인·차감·충전 유도).
   - 투데이: 오늘의 베스트 후원자 + 한줄 후기 감사편지 가로 스크롤
   - 하단 네비: 홈 / 추가 / 마이페이지 (추가·마이페이지 비로그인 시 로그인 유도). **환자** 로그인 시에만 하단 FAB(+) 노출 → 탭 시 환자 사연 신청(PostUploadScreen)
+  - 마이페이지: WITH Pay 카드에 실시간 잔액(StreamBuilder), 탭 시 충전 다이얼로그 → 결제 수단 시트 → 가상 결제 모달 → 성공 화면(잔액 표시) → [확인] 시 다이얼로그 닫고 잔액 최신화. 후원 화면에서 잔액 없음/부족 시 RechargeScreen push.
 
 - **Web / Desktop**
   - 동일 헤더·후원 카드·토글
@@ -82,8 +90,8 @@
 
 - 순위 전체보기 전용 화면 (이미지의 «순위 전체보기» UI)
 - 로그아웃 버튼(마이페이지 또는 헤더 메뉴)
-- 후원하기 플로우 화면
 - API 연동 (후원 금액, 피드 목록, 순위 목록)
+- 회원가입/로그인 시 Firestore `users` 문서에 `withPayBalance: 0` 필드 초기화(선택, 없으면 읽기 시 0 처리)
 - **이미지 에셋:** `images/` 폴더에 실제 파일 추가 (mascot_p.png, image_48dd69.png 등). 경로는 `images/파일명`으로 통일해 웹 빌드 시 `assets/assets/` 중복 404 방지됨.
 - 네트워크 이미지 URL 연동
 
@@ -131,9 +139,13 @@
    - `shared/widgets` → `features/main`, `features/auth`  
    - `features/auth` (LoginScreen, SignupScreen) → `core/auth`, `shared/widgets`  
    - `features/admin` (AdminMainScreen, AdminMemberDetailScreen, AdminDashboardScreen) → `core/auth`, `features/main`(복귀용), Firestore posts  
-   - `features/post` (PostUploadScreen) → `core/auth`, `core/services/imgbb_upload`, Firestore posts  
+   - `features/post` (PostUploadScreen, PostDetailScreen) → `core/auth`, `core/services/imgbb_upload`, `core/services/donation_service`, `core/services/with_pay_service`, Firestore posts  
    - `core/services/imgbb_upload` → `http`, `image_picker` (XFile.readAsBytes)
+
+8. **WITH Pay · 충전·후원**  
+   - 마이페이지: `withPayBalanceStream(userId)`로 잔액 표시. WITH Pay 카드 탭 → `showWithPayRechargeDialog`(금액 선택) → [충전하기] → `showPaymentMethodSheet`(신용카드/카카오/네이버/토스) → `startPay`(PaymentWebViewMock: 2.5초 로딩 → "지문/비밀번호" + [확인]) → `rechargeWithPay`(Transaction·`recharges` 저장) → `RechargeSuccessScreen`(잔액 표시) → [확인] 시 다이얼로그 닫고 스트림으로 잔액 갱신.  
+   - PostDetailScreen 후원하기: 금액 선택 → `getWithPayBalance(userId)`. 잔액 0/부족 → "충전하시겠습니까?" 등 확인 시 `RechargeScreen` push. 잔액 ≥ 금액 → `processPaymentWithWithPay`(Transaction: 잔액 차감·donations·stats·post) → 성공 시 스낵바.
 
 ---
 
-*마지막 갱신: 환자 사연 신청(ImgBB·PostUploadScreen·Firestore posts), 관리자 대시보드 pending 게시물·승인/반려, 메인 FAB 환자 전용.*
+*마지막 갱신: WITH Pay 충전 UX 고도화 — 결제 수단 BottomSheet, PaymentWebViewMock(2.5초), RechargeSuccessScreen, PaymentService.startPay 추상화, recharges 컬렉션 저장.*

@@ -63,3 +63,126 @@ Stream<DocumentSnapshot<Map<String, dynamic>>> platformStatsStream() {
       .doc(kPlatformStatsDocId)
       .snapshots();
 }
+
+/// 테스트용 결제 시뮬레이션. 2초 대기 후 ① donations 문서 생성 ② platform_stats increment ③ post currentAmount increment.
+/// 성공 시 true, 실패 시 false.
+Future<bool> processPayment({
+  required String userId,
+  required String postId,
+  required int amount,
+  required String postTitle,
+}) async {
+  try {
+    debugPrint('[PAYMENT] : processPayment 시작 — userId=$userId, postId=$postId, amount=$amount');
+    await Future<void>.delayed(const Duration(seconds: 2));
+    debugPrint('[PAYMENT] : 시뮬레이션 2초 완료 — 결제 성공 처리');
+
+    await ensurePlatformStats();
+
+    final batch = _firestore.batch();
+
+    final donationRef = _firestore.collection(FirestoreCollections.donations).doc();
+    batch.set(donationRef, {
+      DonationKeys.userId: userId,
+      DonationKeys.amount: amount,
+      DonationKeys.postTitle: postTitle,
+      DonationKeys.postId: postId,
+      DonationKeys.createdAt: FieldValue.serverTimestamp(),
+    });
+
+    final statsRef = _firestore.collection(FirestoreCollections.platformStats).doc(kPlatformStatsDocId);
+    batch.update(statsRef, {
+      PlatformStatsKeys.totalDonation: FieldValue.increment(amount),
+      PlatformStatsKeys.totalSupporters: FieldValue.increment(1),
+    });
+
+    final postRef = _firestore.collection(FirestoreCollections.posts).doc(postId);
+    batch.update(postRef, {
+      FirestorePostKeys.currentAmount: FieldValue.increment(amount),
+    });
+
+    await batch.commit();
+    debugPrint('[PAYMENT] : donations·platform_stats·post 업데이트 완료');
+    return true;
+  } catch (e, st) {
+    debugPrint('[PAYMENT] : processPayment 실패 — $e');
+    debugPrint('[PAYMENT] : $st');
+    return false;
+  }
+}
+
+/// 해당 사용자의 후원 내역 스트림 (마이페이지용)
+Stream<QuerySnapshot<Map<String, dynamic>>> donationsStreamByUser(String userId) {
+  debugPrint('[PAYMENT] : donations 스트림 구독 — userId=$userId');
+  return _firestore
+      .collection(FirestoreCollections.donations)
+      .where(DonationKeys.userId, isEqualTo: userId)
+      .orderBy(DonationKeys.createdAt, descending: true)
+      .snapshots();
+}
+
+/// WITH Pay 잔액 차감 + 후원 기록·통계·게시물 금액을 Transaction으로 일괄 처리.
+/// 잔액 부족 시 false, 성공 시 true.
+Future<bool> processPaymentWithWithPay({
+  required String userId,
+  required String postId,
+  required int amount,
+  required String postTitle,
+}) async {
+  if (amount <= 0) {
+    debugPrint('[WITHPAY] : processPaymentWithWithPay — amount <= 0');
+    return false;
+  }
+  try {
+    debugPrint('[WITHPAY] : 후원 처리 시작 — userId=$userId, postId=$postId, amount=$amount');
+    await ensurePlatformStats();
+
+    final userRef = _firestore.collection(FirestoreCollections.users).doc(userId);
+    final postRef = _firestore.collection(FirestoreCollections.posts).doc(postId);
+    final statsRef = _firestore.collection(FirestoreCollections.platformStats).doc(kPlatformStatsDocId);
+    final donationRef = _firestore.collection(FirestoreCollections.donations).doc();
+
+    final success = await _firestore.runTransaction<bool>((tx) async {
+      final userSnap = await tx.get(userRef);
+      if (!userSnap.exists) {
+        debugPrint('[WITHPAY] : 사용자 문서 없음');
+        return false;
+      }
+      final current = (userSnap.data()?[FirestoreUserKeys.withPayBalance] is int)
+          ? (userSnap.data()![FirestoreUserKeys.withPayBalance] as int)
+          : 0;
+      if (current < amount) {
+        debugPrint('[WITHPAY] : 잔액 부족 — current=$current, need=$amount');
+        return false;
+      }
+      tx.update(userRef, {
+        FirestoreUserKeys.withPayBalance: FieldValue.increment(-amount),
+      });
+      tx.set(donationRef, {
+        DonationKeys.userId: userId,
+        DonationKeys.amount: amount,
+        DonationKeys.postTitle: postTitle,
+        DonationKeys.postId: postId,
+        DonationKeys.createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(statsRef, {
+        PlatformStatsKeys.totalDonation: FieldValue.increment(amount),
+        PlatformStatsKeys.totalSupporters: FieldValue.increment(1),
+      });
+      tx.update(postRef, {
+        FirestorePostKeys.currentAmount: FieldValue.increment(amount),
+      });
+      debugPrint('[WITHPAY] : Transaction 내 잔액 차감·후원 기록·통계·post 반영 완료');
+      return true;
+    });
+
+    if (success) {
+      debugPrint('[WITHPAY] : 후원 처리 완료 — $amount 원 차감');
+    }
+    return success;
+  } catch (e, st) {
+    debugPrint('[WITHPAY] : processPaymentWithWithPay 실패 — $e');
+    debugPrint('[WITHPAY] : $st');
+    return false;
+  }
+}

@@ -1,11 +1,16 @@
 // 목적: 마이페이지 — UI4.jpg 레이아웃 복원. 상단 산호 헤더·곡선 전환, 소형 프로필, 통계·위드페이 가로 카드, 고객센터 리스트 내 [후원 신청하기].
 // 흐름: 하단 네비 3번 탭. 후원 신청하기 권한 로직(비로그인/후원자/환자) 유지.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
+import '../../core/constants/firestore_keys.dart';
+import '../../core/services/donation_service.dart';
+import '../../core/services/with_pay_service.dart';
+import 'with_pay_recharge_dialog.dart';
 import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../admin/admin_dashboard_screen.dart';
@@ -53,7 +58,11 @@ class MyPageScreen extends StatelessWidget {
                 _buildStatsSection(),
                 _buildDonationEmptyState(context),
                 const SizedBox(height: 16),
-                _buildWithPayCard(),
+                _buildWithPayCard(context, user?.id),
+                if (isLoggedIn && user != null) ...[
+                  const SizedBox(height: 24),
+                  _buildMyDonationsSection(context, user!.id),
+                ],
                 const SizedBox(height: 24),
                 const Text(
                   '고객센터',
@@ -259,48 +268,195 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  /// 위드페이 가로형 카드 (노란 배경)
-  Widget _buildWithPayCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.yellow.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: AppColors.yellow,
-              shape: BoxShape.circle,
+  /// 위드페이 가로형 카드 (노란 배경). 로그인 시 실시간 잔액 스트림, 탭 시 충전 다이얼로그.
+  Widget _buildWithPayCard(BuildContext context, String? userId) {
+    return InkWell(
+      onTap: () {
+        if (userId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('로그인 후 충전할 수 있습니다.')),
+          );
+          return;
+        }
+        showWithPayRechargeDialog(context, userId);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.yellow.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.yellow.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: AppColors.yellow,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.account_balance_wallet_outlined, size: 22, color: AppColors.textPrimary),
             ),
-            child: const Icon(Icons.account_balance_wallet_outlined, size: 22, color: AppColors.textPrimary),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            '위드페이',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+            const SizedBox(width: 12),
+            const Text(
+              '위드페이',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
-          ),
-          const Spacer(),
-          Text(
-            '0원',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.coral,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
-        ],
+            const Spacer(),
+            if (userId == null)
+              Text(
+                '0원',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.coral,
+                ),
+              )
+            else
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: withPayBalanceStream(userId),
+                builder: (context, snapshot) {
+                  final balance = balanceFromSnapshot(snapshot.data);
+                  return Text(
+                    '${_formatWithPayBalance(balance)}원',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.coral,
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
+          ],
+        ),
       ),
     );
+  }
+
+  static String _formatWithPayBalance(int value) {
+    if (value >= 10000) return '${value ~/ 10000}만';
+    return value.toString();
+  }
+
+  /// 나의 후원 내역 — Firestore donations에서 userId 일치하는 문서 스트림으로 표시
+  Widget _buildMyDonationsSection(BuildContext context, String userId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          '나의 후원 내역',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: donationsStreamByUser(userId), // Firestore 복합 인덱스: donations (userId, createdAt desc)
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '후원 내역을 불러올 수 없습니다.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                ),
+              );
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )),
+              );
+            }
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  '아직 후원 내역이 없습니다.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                ),
+              );
+            }
+            return Column(
+              children: docs.map((doc) {
+                final d = doc.data();
+                final postTitle = d[DonationKeys.postTitle]?.toString() ?? '(사연)';
+                final amount = (d[DonationKeys.amount] is int)
+                    ? d[DonationKeys.amount] as int
+                    : (int.tryParse(d[DonationKeys.amount]?.toString() ?? '0') ?? 0);
+                final createdAt = d[DonationKeys.createdAt];
+                String dateStr = '-';
+                if (createdAt is Timestamp) {
+                  final dt = createdAt.toDate();
+                  dateStr = '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+                }
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.inactiveBackground.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              postTitle,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              dateStr,
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${_formatDonationAmount(amount)}원',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.coral,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  static String _formatDonationAmount(int value) {
+    if (value >= 10000) return '${value ~/ 10000}만';
+    return value.toString();
   }
 
   /// 고객센터 리스트 — [후원 신청하기] 리스트 아이템 크기로 첫 항목, 강조색 유지. 관리자일 때만 [관리자 시스템] 최상단 노출.

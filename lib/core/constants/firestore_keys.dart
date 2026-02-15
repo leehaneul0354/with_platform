@@ -7,6 +7,29 @@ class FirestoreCollections {
   static const String users = 'users';
   static const String posts = 'posts';
   static const String platformStats = 'platform_stats';
+  static const String donations = 'donations';
+  static const String recharges = 'recharges';
+}
+
+/// recharges 문서 필드 (충전 내역)
+class RechargeKeys {
+  RechargeKeys._();
+
+  static const String userId = 'userId';
+  static const String amount = 'amount';
+  static const String paymentMethod = 'paymentMethod';
+  static const String createdAt = 'createdAt';
+}
+
+/// donations 문서 필드 (후원 내역)
+class DonationKeys {
+  DonationKeys._();
+
+  static const String userId = 'userId';
+  static const String amount = 'amount';
+  static const String postTitle = 'postTitle';
+  static const String postId = 'postId';
+  static const String createdAt = 'createdAt';
 }
 
 /// platform_stats 문서 필드 (후원 현황 등)
@@ -32,6 +55,8 @@ class FirestorePostKeys {
   static const String pending = 'pending';
   static const String approved = 'approved';
   static const String rejected = 'rejected';
+  /// 게시물별 누적 모금액 (후원 시 increment)
+  static const String currentAmount = 'currentAmount';
 }
 
 /// Firestore users 문서 필드 키. 코드 전반에서 이 상수만 사용할 것.
@@ -50,6 +75,9 @@ class FirestoreUserKeys {
   static const String createdAt = 'createdAt';
   static const String joinedAt = 'joinedAt';
   static const String isVerified = 'is_verified';
+
+  /// WITH Pay 잔액 (int, 기본값 0)
+  static const String withPayBalance = 'withPayBalance';
 
   /// 레거시/콘솔용 별칭 (읽기 시에만 사용)
   static const String name = 'name';
