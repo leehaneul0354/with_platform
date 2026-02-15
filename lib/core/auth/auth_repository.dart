@@ -139,6 +139,40 @@ class AuthRepository {
     await _firestore.collection('users').doc(user.id).update(user.toJson());
   }
 
+  /// Firestore에서 최신 유저 문서를 불러와 동기화. 회원정보 수정 화면 등에서 실시간 반영용.
+  Future<UserModel?> fetchUserFromFirestore(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      final data = doc.data();
+      if (doc.exists && data != null) {
+        final user = UserModel.fromJson(data);
+        await setCurrentUser(user);
+        return user;
+      }
+    } catch (e) {
+      debugPrint('AuthRepository.fetchUserFromFirestore: $e');
+    }
+    return null;
+  }
+
+  /// 현재 비밀번호 확인 후 새 비밀번호로 Firestore 업데이트 (재인증).
+  /// currentPassword가 저장된 값과 일치해야만 성공.
+  Future<bool> updatePasswordReauth(String userId, String currentPassword, String newPassword) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      final data = doc.data();
+      if (!doc.exists || data == null) return false;
+      final user = UserModel.fromJson(data);
+      if (user.password != currentPassword) return false;
+      await _firestore.collection('users').doc(userId).update({FirestoreUserKeys.password: newPassword});
+      await setCurrentUser(user.copyWith(password: newPassword));
+      return true;
+    } catch (e) {
+      debugPrint('AuthRepository.updatePasswordReauth: $e');
+      return false;
+    }
+  }
+
   /// 로그인. 호출 전 프론트엔드에서 비밀번호 4~20자 검증 완료된 경우에만 요청됨. (CHECK: 비밀번호 규칙 (4-20자) 적용 완료)
   Future<UserModel?> login(String id, String password) async {
     final admin = TestAccounts.resolveAdmin(id, password);

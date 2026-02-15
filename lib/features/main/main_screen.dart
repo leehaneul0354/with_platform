@@ -16,6 +16,7 @@ import '../admin/admin_main_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
 import 'main_content_desktop.dart';
+import 'profile_edit_screen.dart';
 import 'main_content_mobile.dart';
 import 'my_page_screen.dart';
 
@@ -94,6 +95,20 @@ class _MainScreenState extends State<MainScreen> {
     ).then((_) => setState(() {}));
   }
 
+  void _navigateToProfileEdit() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProfileEditScreen(
+          onLogout: () {
+            if (mounted) setState(() {});
+          },
+        ),
+      ),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -106,7 +121,8 @@ class _MainScreenState extends State<MainScreen> {
       },
       child: Scaffold(
         appBar: CurvedYellowHeader(
-          onPersonTap: _navigateToLogin,
+          isLoggedIn: _isLoggedIn,
+          onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
         ),
         body: IndexedStack(
           index: _bottomIndex,
@@ -175,6 +191,9 @@ class _MainScreenState extends State<MainScreen> {
             MyPageScreen(
               onLoginTap: _navigateToLogin,
               onSignupTap: _navigateToSignup,
+              onLogout: () {
+                if (mounted) setState(() => _bottomIndex = 0);
+              },
             ),
           ],
         ),

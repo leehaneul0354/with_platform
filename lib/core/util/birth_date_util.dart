@@ -60,4 +60,23 @@ class BirthDateUtil {
     final dd = int.tryParse(s.substring(4, 6));
     return mm != null && mm >= 1 && mm <= 12 && dd != null && dd >= 1 && dd <= 31;
   }
+
+  /// 저장값(YYYY-MM-DD 또는 YYMMDD) → DatePicker용 DateTime. 실패 시 null.
+  static DateTime? storedToDateTime(String? stored) {
+    if (stored == null || stored.isEmpty) return null;
+    final s = stored.trim();
+    if (s.length == 10 && s[4] == '-' && s[7] == '-') {
+      return DateTime.tryParse(s);
+    }
+    final iso = yymmddToIso(s);
+    return iso != null ? DateTime.tryParse(iso) : null;
+  }
+
+  /// DatePicker에서 선택한 DateTime → Firestore 저장용 YYYY-MM-DD.
+  static String dateTimeToIso(DateTime d) {
+    final y = d.year;
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
 }

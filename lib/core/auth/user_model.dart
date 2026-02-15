@@ -158,6 +158,8 @@ class UserModel {
   }
 
   UserModel copyWith({
+    String? nickname,
+    String? email,
     String? joinedAt,
     int? trustScore,
     bool? isVerified,
@@ -169,9 +171,9 @@ class UserModel {
     final newStatus = status ?? (isVerified != null ? (isVerified ? UserStatus.verified : UserStatus.pending) : this.status);
     return UserModel(
       id: id,
-      email: email,
+      email: email ?? this.email,
       password: password ?? this.password,
-      nickname: nickname,
+      nickname: nickname ?? this.nickname,
       type: type,
       trustScore: trustScore ?? this.trustScore,
       joinedAt: joinedAt ?? this.joinedAt,

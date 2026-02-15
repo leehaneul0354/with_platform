@@ -1,22 +1,26 @@
 // 목적: UI2 디자인 — 노란색(#FFD400) U자 곡선 배경 + WITH 헤더.
-// 흐름: CustomPainter로 하단이 부드럽게 처진 곡선을 그려 헤더 영역 구성.
+// 흐름: 로그인 시 좌측 기본 마스코트(원형), 비로그인 시 사람 아이콘.
 
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/assets.dart';
 
 /// UI2 시안 Yellow #FFD400
 const Color _headerYellow = Color(0xFFFFD400);
 
-/// U자형 곡선 노란 배경 + 좌측 사람 아이콘, 중앙 WITH, 우측 종 모양 알림 아이콘
+/// U자형 곡선 노란 배경 + 좌측(프로필/마스코트), 중앙 WITH, 우측 알림 아이콘
 class CurvedYellowHeader extends StatelessWidget implements PreferredSizeWidget {
   const CurvedYellowHeader({
     super.key,
     this.showBackButton = false,
+    this.isLoggedIn = false,
     this.onNotificationTap,
     this.onPersonTap,
   });
 
   final bool showBackButton;
+  /// true면 좌측에 기본 마스코트(원형), false면 사람 아이콘
+  final bool isLoggedIn;
   final VoidCallback? onNotificationTap;
   final VoidCallback? onPersonTap;
 
@@ -58,10 +62,36 @@ class CurvedYellowHeader extends StatelessWidget implements PreferredSizeWidget 
         onPressed: () => Navigator.of(context).maybePop(),
       );
     } else if (onPersonTap != null) {
-      leading = IconButton(
-        icon: const Icon(Icons.person_outline, color: AppColors.textPrimary),
-        onPressed: onPersonTap,
-      );
+      if (isLoggedIn) {
+        leading = Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPersonTap,
+              borderRadius: BorderRadius.circular(24),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.white,
+                child: ClipOval(
+                  child: Image.asset(
+                    WithMascots.profileDefault,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.person, color: AppColors.textPrimary, size: 24),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        leading = IconButton(
+          icon: const Icon(Icons.person_outline, color: AppColors.textPrimary),
+          onPressed: onPersonTap,
+        );
+      }
     }
 
     return Row(

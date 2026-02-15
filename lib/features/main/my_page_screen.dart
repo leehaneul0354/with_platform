@@ -15,10 +15,13 @@ class MyPageScreen extends StatelessWidget {
     super.key,
     this.onLoginTap,
     this.onSignupTap,
+    this.onLogout,
   });
 
   final VoidCallback? onLoginTap;
   final VoidCallback? onSignupTap;
+  /// 로그아웃 완료 후 호출 (메인 갱신·탭 전환용)
+  final VoidCallback? onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +64,10 @@ class MyPageScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 _buildCustomerCenterList(context, isLoggedIn, isPatient),
+                if (isLoggedIn) ...[
+                  const SizedBox(height: 24),
+                  _LogoutButton(onLogout: onLogout),
+                ],
                 const SizedBox(height: 24),
               ],
             ),
@@ -443,6 +450,54 @@ class _DonationApplyTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 마이페이지 하단 [로그아웃] 버튼. 클릭 시 확인 후 AuthRepository.logout() → 메인(비로그인) 전환.
+class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({this.onLogout});
+
+  final VoidCallback? onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: () => _handleLogout(context),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textSecondary,
+          side: BorderSide(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Text('로그아웃'),
+      ),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('로그아웃 하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('로그아웃'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    await AuthRepository.instance.logout();
+    if (!context.mounted) return;
+    onLogout?.call();
   }
 }
 
