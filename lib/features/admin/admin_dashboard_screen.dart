@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../core/services/admin_service.dart';
 import '../main/main_screen.dart';
 
 /// 관리자 전용 컬러 — 다크 네이비 테마
@@ -118,7 +119,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _PendingPostsList(onTapPost: _openDetailSheet),
+            _PendingPostsList(
+              onTapPost: _openDetailSheet,
+              onDeletePost: _confirmAndDeletePost,
+              isAdmin: true,
+            ),
           ],
         ),
       ),
@@ -137,6 +142,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => _PostDetailSheet(
         docId: docId,
         data: data,
+        isAdmin: true,
         onClose: () => Navigator.of(ctx).pop(),
         onApproved: () async {
           Navigator.of(ctx).pop();
@@ -148,8 +154,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           await _updateStatus(docId, FirestorePostKeys.rejected);
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('반려되었습니다.')));
         },
+        onDelete: () async {
+          final navigator = Navigator.of(ctx);
+          final confirm = await showDeletePostConfirmDialog(ctx);
+          if (!confirm) return;
+          debugPrint('[SYSTEM] : [ADMIN] 대시보드 상세 시트에서 게시물 삭제 시도 - ID: $docId');
+          navigator.pop();
+          final ok = await deletePost(docId);
+          if (mounted) {
+            if (ok) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('게시물이 삭제되었습니다')));
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('삭제 실패. 권한을 확인해 주세요.')));
+            }
+          }
+        },
       ),
     );
+  }
+
+  Future<void> _confirmAndDeletePost(String docId) async {
+    debugPrint('[SYSTEM] : [ADMIN] 리스트에서 게시물 삭제 요청 - ID: $docId');
+    final confirm = await showDeletePostConfirmDialog(context);
+    if (!confirm) return;
+    final ok = await deletePost(docId);
+    if (mounted) {
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('게시물이 삭제되었습니다')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('삭제 실패. 권한을 확인해 주세요.')));
+      }
+    }
   }
 
   Future<void> _updateStatus(String docId, String status) async {
@@ -261,11 +296,17 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// 승인 대기 리스트 — 카드(썸네일/제목/작성자/신청일)
+/// 승인 대기 리스트 — 카드(썸네일/제목/작성자/신청일), 관리자일 때 삭제 아이콘
 class _PendingPostsList extends StatelessWidget {
-  const _PendingPostsList({required this.onTapPost});
+  const _PendingPostsList({
+    required this.onTapPost,
+    this.onDeletePost,
+    this.isAdmin = false,
+  });
 
   final void Function(String docId, Map<String, dynamic> data) onTapPost;
+  final Future<void> Function(String docId)? onDeletePost;
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -316,6 +357,7 @@ class _PendingPostsList extends StatelessWidget {
               docId: doc.id,
               data: data,
               onTap: () => onTapPost(doc.id, data),
+              onDelete: isAdmin && onDeletePost != null ? () => onDeletePost!(doc.id) : null,
             );
           },
         );
@@ -329,11 +371,13 @@ class _PostCard extends StatelessWidget {
     required this.docId,
     required this.data,
     required this.onTap,
+    this.onDelete,
   });
 
   final String docId;
   final Map<String, dynamic> data;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -408,7 +452,14 @@ class _PostCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: _AdminTheme.slate, size: 24),
+              if (onDelete != null)
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, color: _AdminTheme.danger, size: 22),
+                  tooltip: '게시물 삭제',
+                )
+              else
+                const Icon(Icons.chevron_right, color: _AdminTheme.slate, size: 24),
             ],
           ),
         ),
@@ -417,24 +468,29 @@ class _PostCard extends StatelessWidget {
   }
 }
 
-/// 풀시트 상세: 사진 크게, 최종 승인 / 반려
+/// 풀시트 상세: 사진 크게, 최종 승인 / 반려 / 게시물 삭제(관리자만, 빨간색)
 class _PostDetailSheet extends StatelessWidget {
   const _PostDetailSheet({
     required this.docId,
     required this.data,
+    required this.isAdmin,
     required this.onClose,
     required this.onApproved,
     required this.onRejected,
+    required this.onDelete,
   });
 
   final String docId;
   final Map<String, dynamic> data;
+  final bool isAdmin;
   final VoidCallback onClose;
   final VoidCallback onApproved;
   final VoidCallback onRejected;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[ADMIN] : 상세 시트 빌드됨, isAdmin status: $isAdmin');
     final title = data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
     final content = data[FirestorePostKeys.content]?.toString() ?? '';
     final patientName = data[FirestorePostKeys.patientName]?.toString() ?? '-';
@@ -536,40 +592,59 @@ class _PostDetailSheet extends StatelessWidget {
                           )),
                     ],
                     const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              onRejected();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _AdminTheme.danger,
-                              side: const BorderSide(color: _AdminTheme.danger),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('반려'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () {
-                              onApproved();
-                            },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _AdminTheme.accent,
-                              foregroundColor: _AdminTheme.darkNavy,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('최종 승인'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
                   ],
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: onRejected,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _AdminTheme.danger,
+                            side: const BorderSide(color: _AdminTheme.danger),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text('반려'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: onApproved,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _AdminTheme.accent,
+                            foregroundColor: _AdminTheme.darkNavy,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text('최종 승인'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isAdmin) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        label: const Text('게시물 삭제'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _AdminTheme.danger,
+                          foregroundColor: _AdminTheme.light,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],

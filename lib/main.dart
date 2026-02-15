@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:with_platform/core/auth/auth_repository.dart';
+import 'package:with_platform/core/services/donation_service.dart';
 import 'package:with_platform/features/splash/splash_screen.dart';
 import 'package:with_platform/shared/widgets/app_error_page.dart';
 
@@ -13,6 +14,12 @@ void main() async {
   );
 
   await AuthRepository.instance.loadCurrentUser();
+
+  ensurePlatformStats().then((_) {
+    debugPrint('[SYSTEM] : platform_stats 초기화 완료');
+  }).catchError((e) {
+    debugPrint('[SYSTEM] : platform_stats 초기화 실패 $e');
+  });
 
   runApp(const MyApp());
 }

@@ -9,9 +9,11 @@ import '../../core/constants/app_colors.dart';
 import '../../core/util/responsive_util.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/widgets/curved_yellow_header.dart';
-import '../../widgets/main_visual_card.dart';
+import '../../shared/widgets/approved_posts_feed.dart';
+import '../../shared/widgets/platform_stats_card.dart';
 import '../../shared/widgets/today_feed_toggle.dart';
 import '../../shared/widgets/bottom_navigation.dart';
+import '../../shared/widgets/donor_rank_list.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../auth/login_screen.dart';
@@ -111,6 +113,103 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  /// 모바일 홈: 노란 바만 pinned, 핑크 카드·피드까지 한 번에 스크롤 (CustomScrollView + SliverAppBar).
+  Widget _buildMobileHomeScroll() {
+    const double _headerHeight = 56 + 14 + 8; // CurvedYellowHeader preferred height
+    return CustomScrollView(
+      slivers: [
+        SliverAppBar(
+          pinned: true,
+          expandedHeight: _headerHeight,
+          toolbarHeight: _headerHeight,
+          flexibleSpace: SizedBox.expand(
+            child: CurvedYellowHeader(
+              isLoggedIn: _isLoggedIn,
+              onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_currentNickname != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '안녕하세요, $_currentNickname님',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF333333),
+                      ),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: PlatformStatsCard(
+                  subtitle: _isLoggedIn
+                      ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
+                      : '반갑습니다',
+                ),
+              ),
+              const SizedBox(height: 8),
+              TodayFeedToggle(
+                isFeedSelected: _isFeedSelected,
+                onSelectionChanged: (v) => setState(() => _isFeedSelected = v),
+              ),
+            ],
+          ),
+        ),
+        if (_isFeedSelected)
+          const ApprovedPostsFeedSliver()
+        else
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DonorRankList(
+                  title: '오늘의 베스트 후원자',
+                  items: const [
+                    (rank: 1, name: '도우미 사는 인생 🎗️', amountString: '135,000원'),
+                    (rank: 2, name: '후쿠후쿠미야자 🍎', amountString: '120,000원'),
+                    (rank: 3, name: '3월의벚꽃라면 🍜', amountString: '15,000원'),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '한줄 후기 감사편지',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF333333),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 160,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _ThanksCard('백혈병 수술비 후원자분들 감사합니다'),
+                      _ThanksCard('수술비 감사합니다'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -122,64 +221,51 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
       child: Scaffold(
-        appBar: CurvedYellowHeader(
-          isLoggedIn: _isLoggedIn,
-          onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
-        ),
+        appBar: (ResponsiveHelper.isMobile(context) && _bottomIndex == 0)
+            ? null
+            : CurvedYellowHeader(
+                isLoggedIn: _isLoggedIn,
+                onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
+              ),
         body: IndexedStack(
           index: _bottomIndex.clamp(0, _isAdmin ? 3 : 2),
           children: [
-            Column(
-              children: [
-                if (_currentNickname != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '안녕하세요, $_currentNickname님',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF333333),
+            ResponsiveLayout(
+              mobileChild: _buildMobileHomeScroll(),
+              desktopChild: Column(
+                children: [
+                  if (_currentNickname != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '안녕하세요, $_currentNickname님',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF333333),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                Transform.translate(
-                  offset: const Offset(0, -50), //메인화면 상단 노란색 위치조절
-                  child: MainVisualCard(
-                    amountString: _isLoggedIn ? '2,259,424,122' : '0',
-                    subtitle: _isLoggedIn
-                        ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
-                        : '반갑습니다',
-                  ),
-                ),
-                Expanded(
-                  child: ResponsiveLayout(
-                    mobileChild: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TodayFeedToggle(
-                          isFeedSelected: _isFeedSelected,
-                          onSelectionChanged: (v) => setState(() => _isFeedSelected = v),
-                        ),
-                        Expanded(
-                          child: MainContentMobile(
-                            isFeedSelected: _isFeedSelected,
-                            displayNickname: _currentNickname,
-                          ),
-                        ),
-                      ],
+                  Transform.translate(
+                    offset: const Offset(0, -50),
+                    child: PlatformStatsCard(
+                      subtitle: _isLoggedIn
+                          ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
+                          : '반갑습니다',
                     ),
-                    desktopChild: MainContentDesktop(
+                  ),
+                  Expanded(
+                    child: MainContentDesktop(
                       isFeedSelected: _isFeedSelected,
                       onToggleChanged: (v) => setState(() => _isFeedSelected = v),
                       displayNickname: _currentNickname,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             Center(
               child: Text(
@@ -236,6 +322,36 @@ class _MainScreenState extends State<MainScreen> {
                       label: const Text('나도 후원하기'),
                     ),
                   ),
+      ),
+    );
+  }
+}
+
+class _ThanksCard extends StatelessWidget {
+  const _ThanksCard(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0E0E0),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.bottomLeft,
+      padding: const EdgeInsets.all(12),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFF333333),
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

@@ -6,6 +6,16 @@ class FirestoreCollections {
 
   static const String users = 'users';
   static const String posts = 'posts';
+  static const String platformStats = 'platform_stats';
+}
+
+/// platform_stats 문서 필드 (후원 현황 등)
+class PlatformStatsKeys {
+  PlatformStatsKeys._();
+
+  static const String totalDonation = 'totalDonation';
+  static const String totalSupporters = 'totalSupporters';
+  static const String activeProjects = 'activeProjects';
 }
 
 /// Firestore posts 문서 필드·상태값 (게시물 승인 대기 등)

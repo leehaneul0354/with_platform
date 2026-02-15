@@ -75,3 +75,81 @@ class ApprovedPostsFeed extends StatelessWidget {
     );
   }
 }
+
+/// CustomScrollView 내부에서 사용. orderBy(createdAt, descending: true) 적용, SliverList로 빌드해 상위 스크롤과 일체화.
+class ApprovedPostsFeedSliver extends StatelessWidget {
+  const ApprovedPostsFeedSliver({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    debugPrint('[SYSTEM] : 피드 데이터 로드 중...');
+    final stream = FirebaseFirestore.instance
+        .collection(FirestoreCollections.posts)
+        .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.approved)
+        .orderBy(FirestorePostKeys.createdAt, descending: true)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('[SYSTEM] : 피드 스트림 에러: ${snapshot.error}');
+          return SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  '목록을 불러오는 중 오류가 발생했습니다.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          debugPrint('[SYSTEM] : 피드 데이터 로드 중... (연결 대기)');
+          return const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+        final docs = snapshot.data?.docs ?? [];
+        debugPrint('[SYSTEM] : 피드 데이터 로드 완료 — 승인된 사연 ${docs.length}건');
+        if (docs.isEmpty) {
+          return SliverToBoxAdapter(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  '현재 지원을 기다리는 사연이 없습니다.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+        return SliverPadding(
+          padding: const EdgeInsets.only(top: 8, bottom: 24),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final doc = docs[index];
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                return StoryFeedCard(postId: doc.id, data: data);
+              },
+              childCount: docs.length,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
