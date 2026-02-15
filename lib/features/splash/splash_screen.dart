@@ -1,5 +1,5 @@
 // 목적: 앱 기동 시 마스코트 중심 스플래시·로딩 뷰 → 인증 동기화 후 메인으로 전환.
-// 흐름: image_48dd69.png + 환영 문구, 데이터 로드 중 mascot_p.png 둥둥 애니메이션 + 로딩 바.
+// 흐름: mascot_yellow.png + 환영 문구, 데이터 로드 중 mascot_yellow 둥둥 애니메이션 + 로딩 바.
 
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';

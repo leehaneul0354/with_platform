@@ -10,28 +10,28 @@ class WithMascots {
   WithMascots._();
 
   /// 스플래시 중앙 이미지
-  static const String splash = 'images/image_48dd69.png';
+  static const String splash = 'images/mascot_yellow.png';
 
   /// 로딩 시 둥둥 떠다니는 마스코트
-  static const String loading = 'images/mascot_p.png';
+  static const String loading = 'images/mascot_yellow.png';
 
   /// 로그인 상단 마스코트 (말풍선과 함께)
   static const String login = 'images/mascot1.jpg';
 
   /// 마이페이지 기본 프로필(원형)
-  static const String profileDefault = 'images/mascot_y.png';
+  static const String profileDefault = 'images/mascot_pink.png';
 
-  /// 빈 후원내역 등 시무룩한 표정 마스코트 (없으면 mascot_sad.png 추가)
-  static const String sad = 'images/mascot_sad.png';
+  /// 빈 후원내역 등 시무룩한 표정 마스코트
+  static const String sad = 'images/mascot_green.png';
 
   /// 노란색 웃는 얼굴 (파스텔 노랑 원형)
-  static const String yellowSmile = 'images/mascot_p.png';
+  static const String yellowSmile = 'images/mascot_yellow.png';
 
   /// 분홍색 웃는 얼굴 (파스텔 분홍 원형)
-  static const String pinkSmile = 'images/mascot_y.png';
+  static const String pinkSmile = 'images/mascot_pink.png';
 
   /// 연두/민트색 웃는 얼굴
-  static const String greenSmile = 'images/mascot3.png';
+  static const String greenSmile = 'images/mascot_green.png';
 
   /// WITH 로고 + 노란 마스코트 (분홍 배경)
   static const String withLogo = 'images/mascot1.png';
@@ -39,8 +39,8 @@ class WithMascots {
   /// 여러 마스코트 그룹
   static const String group = 'images/mascots.jpg';
 
-  /// 메인 카드 우측 하단 반달 모양 마스코트 (둥근 정사각형 영역용)
-  static const String cardMascot = 'images/mascot_crescent.png';
+  /// 메인 카드 우측 하단 노란색 마스코트 (mascot_crescent → mascot_yellow 통일)
+  static const String cardMascot = 'images/mascot_yellow.png';
 }
 
 /// 마스코트 스타일 가이드 (UI 설계 시 유지할 기준)

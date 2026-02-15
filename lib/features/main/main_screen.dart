@@ -7,7 +7,7 @@ import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/util/responsive_util.dart';
 import '../../shared/widgets/responsive_layout.dart';
-import '../../shared/widgets/with_header.dart';
+import '../../shared/widgets/curved_yellow_header.dart';
 import '../../shared/widgets/donation_progress_card.dart';
 import '../../shared/widgets/today_feed_toggle.dart';
 import '../../shared/widgets/bottom_navigation.dart';
@@ -105,7 +105,7 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
       child: Scaffold(
-        appBar: WithHeader(
+        appBar: CurvedYellowHeader(
           onPersonTap: _navigateToLogin,
         ),
         body: IndexedStack(
@@ -128,7 +128,10 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
                   ),
-                const DonationProgressCard(),
+                Transform.translate(
+                  offset: const Offset(0, -20),
+                  child: const DonationProgressCard(),
+                ),
                 Expanded(
                   child: ResponsiveLayout(
                     mobileChild: Column(

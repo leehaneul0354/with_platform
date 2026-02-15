@@ -61,8 +61,7 @@ flutter:
   uses-material-design: true
 
   # 에셋: 루트 images/ 사용 시 Flutter 웹 빌드가 build/web/assets/images/ 로 출력해 assets/assets/ 중복 404 방지.
-  # 파일명은 공백 없이 언더바 사용 (예: mascot_p.png). 이미지 파일은 images/ 폴더에 둠.
-  # image_48dd69.png, mascot_p.png, mascot_y.png, mascot1.jpg, mascot1.png, mascot3.png, mascots.jpg, mascot_sad.png
+  # 파일명: mascot_yellow.png(메인 카드 포함), mascot_pink.png, mascot_green.png, mascot1.jpg 등
   assets:
     - images/
 
