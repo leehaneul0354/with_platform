@@ -93,9 +93,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const MainScreen()),
-              );
+              Navigator.of(context).pop();
             },
             child: const Text('메인으로', style: TextStyle(color: _AdminTheme.light)),
           ),

@@ -79,29 +79,15 @@ class _MainScreenState extends State<MainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await AuthRepository.instance.ensureAuthSync();
-      if (!mounted) return;
-      if (AuthRepository.instance.currentUser?.type == UserType.admin ||
-          AuthRepository.instance.currentUser?.isAdmin == true) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-        );
-      }
+      if (mounted) setState(() {});
     });
   }
 
   void _navigateToLogin() {
-    final navigator = Navigator.of(context);
-    navigator.push(
+    Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     ).then((_) {
-      if (!mounted) return;
-      setState(() {});
-      if (AuthRepository.instance.currentUser?.type == UserType.admin ||
-          AuthRepository.instance.currentUser?.isAdmin == true) {
-        navigator.pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-        );
-      }
+      if (mounted) setState(() {});
     });
   }
 

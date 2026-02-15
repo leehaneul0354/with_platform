@@ -2,11 +2,11 @@
 // 흐름: MainScreen → ResponsiveLayout desktopChild로 사용.
 
 import 'package:flutter/material.dart';
-import '../../../shared/widgets/feed_card.dart';
+import '../../../shared/widgets/approved_posts_feed.dart';
 import '../../../shared/widgets/donor_rank_list.dart';
 import '../../../shared/widgets/today_feed_toggle.dart';
 
-/// 데스크톱: 좌측 피드/투데이, 우측 순위 리스트. 로그인 시 첫 피드 작성자에 닉네임 표시.
+/// 데스크톱: 좌측 피드/투데이, 우측 순위 리스트.
 class MainContentDesktop extends StatelessWidget {
   const MainContentDesktop({
     super.key,
@@ -32,35 +32,29 @@ class MainContentDesktop extends StatelessWidget {
       children: [
         Expanded(
           flex: 2,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TodayFeedToggle(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TodayFeedToggle(
                   isFeedSelected: isFeedSelected,
                   onSelectionChanged: onToggleChanged,
                 ),
-                if (isFeedSelected) ...[
-                  FeedCard(
-                    authorName: displayNickname ?? '정현태',
-                    likeCount: 333,
-                    commentCount: 21,
-                    bodyText: '함께 나누는 희망으로 소중한 마음을 전해주세요.',
+              ),
+              if (isFeedSelected)
+                const Expanded(child: ApprovedPostsFeed())
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: DonorRankList(
+                      title: '오늘의 베스트 후원자',
+                      items: _sampleRankList,
+                    ),
                   ),
-                  const FeedCard(
-                    authorName: 'WITH',
-                    likeCount: 120,
-                    commentCount: 8,
-                    bodyText: '오늘도 후원해 주신 분들 감사합니다.',
-                  ),
-                ] else
-                  DonorRankList(
-                    title: '오늘의 베스트 후원자',
-                    items: _sampleRankList,
-                  ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
         SizedBox(

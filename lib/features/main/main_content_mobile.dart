@@ -1,11 +1,11 @@
-// 목적: 메인 화면 본문 — 모바일용 단일 컬럼 (피드 또는 투데이 콘텐츠).
+// 목적: 메인 화면 본문 — 모바일용 단일 컬럼. 피드 탭 시 승인된 사연(ApprovedPostsFeed), 투데이 시 순위·감사편지.
 // 흐름: MainScreen → ResponsiveLayout mobileChild로 사용.
 
 import 'package:flutter/material.dart';
-import '../../../shared/widgets/feed_card.dart';
+import '../../../shared/widgets/approved_posts_feed.dart';
 import '../../../shared/widgets/donor_rank_list.dart';
 
-/// 모바일: 투데이/피드 토글에 따라 스크롤 리스트 표시. 로그인 시 첫 피드 작성자에 닉네임 표시.
+/// 모바일: 투데이/피드 토글에 따라 스크롤 리스트 표시.
 class MainContentMobile extends StatelessWidget {
   const MainContentMobile({
     super.key,
@@ -25,24 +25,7 @@ class MainContentMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isFeedSelected) {
-      final firstAuthor = displayNickname ?? '정현태';
-      return ListView(
-        padding: const EdgeInsets.only(bottom: 24),
-        children: [
-          FeedCard(
-            authorName: firstAuthor,
-            likeCount: 333,
-            commentCount: 21,
-            bodyText: '함께 나누는 희망으로 소중한 마음을 전해주세요.',
-          ),
-          const FeedCard(
-            authorName: 'WITH',
-            likeCount: 120,
-            commentCount: 8,
-            bodyText: '오늘도 후원해 주신 분들 감사합니다.',
-          ),
-        ],
-      );
+      return const ApprovedPostsFeed();
     }
 
     return SingleChildScrollView(
