@@ -8,6 +8,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
 import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
+import '../admin/admin_dashboard_screen.dart';
 import 'donation_request_screen.dart';
 
 class MyPageScreen extends StatelessWidget {
@@ -302,10 +303,23 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  /// 고객센터 리스트 — [후원 신청하기] 리스트 아이템 크기로 첫 항목, 강조색 유지
+  /// 고객센터 리스트 — [후원 신청하기] 리스트 아이템 크기로 첫 항목, 강조색 유지. 관리자일 때만 [관리자 시스템] 최상단 노출.
   Widget _buildCustomerCenterList(BuildContext context, bool isLoggedIn, bool isPatient) {
+    final user = AuthRepository.instance.currentUser;
+    final isAdmin = user?.type == UserType.admin;
+
     return Column(
       children: [
+        if (isAdmin) ...[
+          _AdminSystemTile(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
         _DonationApplyTile(
           onPressed: () => _onDonationApplyTap(context, isLoggedIn, isPatient),
         ),
@@ -411,6 +425,44 @@ class _StatItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 관리자 전용 [관리자 시스템] 진입 타일 — 노란색 강조, AdminDashboardScreen으로 이동
+class _AdminSystemTile extends StatelessWidget {
+  const _AdminSystemTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.yellow.withValues(alpha: 0.25),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(Icons.admin_panel_settings, size: 24, color: AppColors.textPrimary),
+              const SizedBox(width: 12),
+              const Text(
+                '관리자 시스템',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.chevron_right, size: 22, color: AppColors.textPrimary),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

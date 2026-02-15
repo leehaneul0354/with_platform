@@ -19,6 +19,9 @@
   - **로그인 후:** 메인 상단 "안녕하세요, [닉네임]님" 출력, 피드 첫 카드 작성자명에 닉네임 표시.
   - **마스코트:** 단순 기하 도형(원·사각형·삼각형)+감은 눈·미소, 파스텔 노랑·분홍·하늘·연두. 로딩 화면·프로필 기본 이미지·후원 완료 축하 페이지에 사용 예정.
   - **관리자 대시보드:** admin/admin0000 로그인 시 AdminMainScreen으로 분기. 비관리자 접근 가드. 통계(총/후원자/환자), 회원 리스트(닉네임·역할·가입일·상태·상세보기), 회원 상세(이메일·Trust Score·투병/후원 영역·인증 완료). SharedPreferences 회원 데이터 연동.
+  - **환자 사연 신청:** ImgBB API로 이미지 업로드(`lib/core/services/imgbb_upload.dart`). `PostUploadScreen`: 제목 필수, 내용 20자·10줄 이상, 사진 최소 1장 검증 → [사진 업로드 → URL 확보 → Firestore `posts` 저장] 한 번에 로딩. Firestore `posts`: title, content, imageUrls, patientId, patientName, createdAt, status(기본 pending).
+  - **관리자 승인:** `AdminDashboardScreen`에서 status=pending 게시물만 StreamBuilder 실시간 표시. 리스트: 제목/작성자/첨부사진 개수. 항목 탭 시 상세 다이얼로그(제목·내용·작성자·이미지) → 승인/반려 버튼으로 Firestore status 업데이트.
+  - **메인 FAB:** `UserType.patient`일 때만 모바일 하단 FAB(+) 노출 → 탭 시 `PostUploadScreen` 이동. 마이페이지 관리자 전용 '관리자 대시보드' → `AdminDashboardScreen` 진입 시 admin 권한 체크 후 비관리자 즉시 퇴장.
 
 ---
 
@@ -53,6 +56,10 @@
 | `lib/features/auth/signup_screen.dart` | SignupScreen (후원자/환자 선택 → 상세 정보 입력, AuthRepository.signUp) |
 | `lib/features/admin/admin_main_screen.dart` | AdminMainScreen. 가드, 헤더·로그아웃, 통계 카드, 회원 리스트·상세보기 |
 | `lib/features/admin/admin_member_detail_screen.dart` | 회원 상세: 기본정보·Trust Score·투병/후원 영역·인증 완료·저장 |
+| `lib/core/constants/firestore_keys.dart` | FirestorePostKeys (title, content, imageUrls, patientId, patientName, createdAt, status, pending/approved/rejected) |
+| `lib/core/services/imgbb_upload.dart` | ImgBB API 업로드. imgbbApiKey, readAsBytes→base64→POST, data.url 반환. [SYSTEM] 로그 |
+| `lib/features/post/post_upload_screen.dart` | 환자 사연 신청: 제목/내용(20자·10줄)/사진(최소 1장) 검증, 썸네일+삭제, 한 번에 로딩 후 Firestore 저장 |
+| `lib/features/admin/admin_dashboard_screen.dart` | pending 게시물 StreamBuilder, 제목/작성자/사진 수, 상세 다이얼로그·승인/반려 Firestore 업데이트 |
 
 ---
 
@@ -62,7 +69,7 @@
   - 상단 노란 헤더(좌측 사람 아이콘→로그인, WITH 로고, 알림), 로그인 시 "안녕하세요, [닉네임]님", 분홍 후원 카드(입체감), 투데이/피드 토글
   - 피드: 수직 스크롤 피드 카드 리스트
   - 투데이: 오늘의 베스트 후원자 + 한줄 후기 감사편지 가로 스크롤
-  - 하단 네비: 홈 / 추가 / 마이페이지 (추가·마이페이지 비로그인 시 로그인 유도)
+  - 하단 네비: 홈 / 추가 / 마이페이지 (추가·마이페이지 비로그인 시 로그인 유도). **환자** 로그인 시에만 하단 FAB(+) 노출 → 탭 시 환자 사연 신청(PostUploadScreen)
 
 - **Web / Desktop**
   - 동일 헤더·후원 카드·토글
@@ -110,16 +117,23 @@
 5. **관리자 대시보드**  
    - admin 로그인 시: `MainScreen`에서 `pushReplacement(AdminMainScreen)`. 앱 기동 시 currentUser가 admin이면 동일하게 치환.  
    - `AdminMainScreen`: 진입 시 `currentUser?.isAdmin != true`이면 `pushAndRemoveUntil(MainScreen)`. 통계(총/후원자/환자)는 `getUsers()` 결과로 계산. 회원 리스트에서 상세보기 → `AdminMemberDetailScreen(user)`.  
-   - `AdminMemberDetailScreen`: 기본정보·Trust Score 입력·환자 시 투병 기록(플레이스홀더)·인증 완료 체크·후원자 시 후원 내역(플레이스홀더). 저장 시 `AuthRepository.updateUser(updated)`.
+   - `AdminMemberDetailScreen`: 기본정보·Trust Score 입력·환자 시 투병 기록(플레이스홀더)·인증 완료 체크·후원자 시 후원 내역(플레이스홀더). 저장 시 `AuthRepository.updateUser(updated)`.  
+   - **AdminDashboardScreen**(마이페이지 '관리자 대시보드'): 진입 시 admin 권한 체크, 비관리자 즉시 MainScreen으로 퇴장. Firestore `posts` where status==pending 스트림 → 리스트(제목/작성자/첨부사진 수) → 탭 시 상세 다이얼로그 → 승인/반려 시 해당 문서 status를 approved/rejected로 업데이트.
 
-6. **참조 관계**  
+6. **환자 사연 신청**  
+   - 메인: `UserType.patient`이고 모바일일 때만 FAB(+) 표시 → 탭 시 `PostUploadScreen` push.  
+   - `PostUploadScreen`: 제목 필수, 내용 20자 이상·10줄 높이, 사진 최소 1장. [신청하기] 시 한 번에 로딩 → 각 사진 `uploadImageToImgBB(XFile)` → URL 수집 → Firestore `posts`에 title, content, imageUrls, patientId, patientName, createdAt, status: pending 저장 후 pop.
+
+7. **참조 관계**  
    - `core/constants` → `core/theme`, `shared/widgets`  
    - `core/util` (ResponsiveHelper) → `shared/widgets`, `features/main`  
    - `core/auth` (UserModel, AuthRepository) → `features/auth`, `features/main`  
    - `shared/widgets` → `features/main`, `features/auth`  
    - `features/auth` (LoginScreen, SignupScreen) → `core/auth`, `shared/widgets`  
-   - `features/admin` (AdminMainScreen, AdminMemberDetailScreen) → `core/auth`, `features/main`(복귀용)
+   - `features/admin` (AdminMainScreen, AdminMemberDetailScreen, AdminDashboardScreen) → `core/auth`, `features/main`(복귀용), Firestore posts  
+   - `features/post` (PostUploadScreen) → `core/auth`, `core/services/imgbb_upload`, Firestore posts  
+   - `core/services/imgbb_upload` → `http`, `image_picker` (XFile.readAsBytes)
 
 ---
 
-*마지막 갱신: 이미지 경로 수정(assets/assets/ 404 해결 → 루트 images/ 사용), Firebase 프로젝트 고정(with-platform-ccc06), 웹 릴리스 빌드·배포 완료.*
+*마지막 갱신: 환자 사연 신청(ImgBB·PostUploadScreen·Firestore posts), 관리자 대시보드 pending 게시물·승인/반려, 메인 FAB 환자 전용.*

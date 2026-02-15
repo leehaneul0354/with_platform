@@ -102,7 +102,7 @@ class AuthRepository {
       (_firestore.collection(FirestoreCollections.users).doc('0000'), '0000', '0000', '테스트환자', 'patient', '000000'),
       (_firestore.collection(FirestoreCollections.users).doc('1111'), '1111', '1111', '테스트후원자', 'donor', '111101'),
       (_firestore.collection(FirestoreCollections.users).doc('2222'), '2222', '2222', '테스트일반', 'donor', '222202'),
-      (_firestore.collection(FirestoreCollections.users).doc('admin'), 'admin', 'admin0000', '관리자', 'donor', '010101'),
+      (_firestore.collection(FirestoreCollections.users).doc('admin'), 'admin', 'admin0000', '관리자', 'admin', '010101'),
     ];
     final batch = _firestore.batch();
     for (final r in list) {

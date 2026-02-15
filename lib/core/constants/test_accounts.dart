@@ -71,7 +71,7 @@ abstract class TestAccounts {
     return null;
   }
 
-  /// 관리자 계정 매칭
+  /// 관리자 계정 매칭 — type을 admin으로 반환해 권한 체크 통과
   static UserModel? resolveAdmin(String id, String password) {
     if (id == adminId && password == adminPw) {
       return UserModel(
@@ -79,7 +79,7 @@ abstract class TestAccounts {
         password: adminPw,
         nickname: adminNickname,
         email: '',
-        type: UserType.donor,
+        type: UserType.admin,
         isAdmin: true,
       );
     }

@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/util/responsive_util.dart';
 import '../../shared/widgets/responsive_layout.dart';
@@ -12,13 +13,14 @@ import '../../widgets/main_visual_card.dart';
 import '../../shared/widgets/today_feed_toggle.dart';
 import '../../shared/widgets/bottom_navigation.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
-import '../admin/admin_main_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
 import 'main_content_desktop.dart';
 import 'profile_edit_screen.dart';
 import 'main_content_mobile.dart';
 import 'my_page_screen.dart';
+import '../post/post_upload_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -34,12 +36,24 @@ class _MainScreenState extends State<MainScreen> {
   bool get _isLoggedIn => AuthRepository.instance.currentUser != null;
   String? get _currentNickname => AuthRepository.instance.currentUser?.nickname;
 
+  bool get _isAdmin =>
+      AuthRepository.instance.currentUser?.type == UserType.admin ||
+      AuthRepository.instance.currentUser?.isAdmin == true;
+
   void _onBottomTab(int index) {
-    if (!_isLoggedIn && (index == 1 || index == 2)) {
+    final isAdmin = _isAdmin;
+    if (!_isLoggedIn && (index == 1 || index == 2 || (isAdmin && index == 3))) {
       LoginPromptDialog.show(
         context,
         onLoginTap: _navigateToLogin,
         onSignupTap: _navigateToSignup,
+      );
+      return;
+    }
+    // 관리자 전용 '관리' 탭(인덱스 2) → AdminDashboardScreen으로 이동
+    if (isAdmin && index == 2) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
       );
       return;
     }
@@ -66,9 +80,10 @@ class _MainScreenState extends State<MainScreen> {
       if (!mounted) return;
       await AuthRepository.instance.ensureAuthSync();
       if (!mounted) return;
-      if (AuthRepository.instance.currentUser?.isAdmin == true) {
+      if (AuthRepository.instance.currentUser?.type == UserType.admin ||
+          AuthRepository.instance.currentUser?.isAdmin == true) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
         );
       }
     });
@@ -81,9 +96,10 @@ class _MainScreenState extends State<MainScreen> {
     ).then((_) {
       if (!mounted) return;
       setState(() {});
-      if (AuthRepository.instance.currentUser?.isAdmin == true) {
+      if (AuthRepository.instance.currentUser?.type == UserType.admin ||
+          AuthRepository.instance.currentUser?.isAdmin == true) {
         navigator.pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
         );
       }
     });
@@ -125,7 +141,7 @@ class _MainScreenState extends State<MainScreen> {
           onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
         ),
         body: IndexedStack(
-          index: _bottomIndex,
+          index: _bottomIndex.clamp(0, _isAdmin ? 3 : 2),
           children: [
             Column(
               children: [
@@ -188,6 +204,13 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
+            if (_isAdmin)
+              const Center(
+                child: Text(
+                  '관리',
+                  style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                ),
+              ),
             MyPageScreen(
               onLoginTap: _navigateToLogin,
               onSignupTap: _navigateToSignup,
@@ -202,18 +225,31 @@ class _MainScreenState extends State<MainScreen> {
                 currentIndex: _bottomIndex,
                 onTabSelected: _onBottomTab,
                 isLoggedIn: _isLoggedIn,
+                isAdmin: _isAdmin,
               )
             : null,
-        floatingActionButton: ResponsiveHelper.isMobile(context)
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: ElevatedButton.icon(
-                  onPressed: _onDonateTap,
-                  icon: const Icon(Icons.favorite_border),
-                  label: const Text('나도 후원하기'),
-                ),
-              ),
+        floatingActionButton: ResponsiveHelper.isMobile(context) &&
+                AuthRepository.instance.currentUser?.type == UserType.patient
+            ? FloatingActionButton(
+                onPressed: () {
+                  debugPrint('[SYSTEM] : 환자 사연 신청 FAB 탭');
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PostUploadScreen()),
+                  );
+                },
+                backgroundColor: AppColors.yellow,
+                child: const Icon(Icons.add, color: AppColors.textPrimary),
+              )
+            : ResponsiveHelper.isMobile(context)
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: ElevatedButton.icon(
+                      onPressed: _onDonateTap,
+                      icon: const Icon(Icons.favorite_border),
+                      label: const Text('나도 후원하기'),
+                    ),
+                  ),
       ),
     );
   }

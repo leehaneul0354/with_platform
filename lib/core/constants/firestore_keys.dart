@@ -5,6 +5,23 @@ class FirestoreCollections {
   FirestoreCollections._();
 
   static const String users = 'users';
+  static const String posts = 'posts';
+}
+
+/// Firestore posts 문서 필드·상태값 (게시물 승인 대기 등)
+class FirestorePostKeys {
+  FirestorePostKeys._();
+
+  static const String title = 'title';
+  static const String content = 'content';
+  static const String imageUrls = 'imageUrls';
+  static const String patientId = 'patientId';
+  static const String patientName = 'patientName';
+  static const String createdAt = 'createdAt';
+  static const String status = 'status';
+  static const String pending = 'pending';
+  static const String approved = 'approved';
+  static const String rejected = 'rejected';
 }
 
 /// Firestore users 문서 필드 키. 코드 전반에서 이 상수만 사용할 것.
