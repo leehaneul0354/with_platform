@@ -20,8 +20,8 @@ class CurvedYellowHeader extends StatelessWidget implements PreferredSizeWidget 
   final VoidCallback? onNotificationTap;
   final VoidCallback? onPersonTap;
 
-  static const double _curveExtension = 16;
-  static const double _curveHeight = 28;
+  static const double _curveExtension = 8;
+  static const double _curveHeight = 14;//노란색 높이조절
   static const double _toolbarHeight = kToolbarHeight;
 
   @override

@@ -75,14 +75,14 @@ class MyPageScreen extends StatelessWidget {
     return Stack(
       children: [
         Container(
-          height: 100,
+          height: 70, // 메인페이지 상단 높이조절 
           width: double.infinity,
           color: AppColors.coral,
         ),
         Positioned(
           left: 0,
           right: 0,
-          top: 60,
+          top: 30,
           child: CustomPaint(
             size: const Size(double.infinity, 48),
             painter: _CurveClipperPainter(),
