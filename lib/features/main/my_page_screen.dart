@@ -14,6 +14,7 @@ import 'with_pay_recharge_dialog.dart';
 import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../../shared/widgets/role_badge.dart';
+import '../../shared/widgets/profile_avatar.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
@@ -285,17 +286,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
           ),
         ],
       ),
-      child: isFirst
-          ? ClipOval(
-              child: Image.asset(
-                WithMascots.profileDefault,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.sentiment_satisfied_alt,
-                  color: AppColors.textPrimary,
-                  size: 32,
-                ),
-              ),
+      child: isFirst && user != null
+          ? ProfileAvatar(
+              profileImage: user.profileImage,
+              radius: size,
             )
           : null,
     );

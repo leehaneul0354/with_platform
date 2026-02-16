@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/firestore_keys.dart';
 import '../constants/test_accounts.dart';
+import '../constants/assets.dart';
 import '../util/birth_date_util.dart';
 import 'user_model.dart';
 
@@ -66,6 +67,12 @@ class AuthRepository {
         FirestoreUserKeys.trustScore: 0,
         FirestoreUserKeys.createdAt: FieldValue.serverTimestamp(),
         FirestoreUserKeys.birthDate: user.birthDate ?? '',
+        // profileImage는 파일명만 저장 (전체 경로가 아닌)
+        FirestoreUserKeys.profileImage: user.profileImage != null && user.profileImage!.isNotEmpty
+            ? (user.profileImage!.contains('assets/images/')
+                ? AppAssets.getFileName(user.profileImage!)
+                : user.profileImage!.trim())
+            : AppAssets.getFileName(AppAssets.defaultProfile),
       });
       await setCurrentUser(user);
       return user;

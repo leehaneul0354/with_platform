@@ -1,5 +1,6 @@
-// 목적: 환자 사연 신청 업로드. 제목·내용·사진 필수 검증, ImgBB 업로드 후 Firestore posts 저장.
-// 흐름: 메인 FAB(환자 전용) → 본 화면 → [사진 업로드 → URL 확보 → Firestore 저장] 한 번에 로딩.
+// 목적: 환자 투병기록 작성. 제목·내용·사진 필수 검증, ImgBB 업로드 후 Firestore posts 저장.
+// 흐름: PostCreateChoiceScreen → 본 화면 → [사진 업로드 → URL 확보 → Firestore 저장] 한 번에 로딩.
+// 환자 본인의 기록을 작성하므로 patientId는 현재 로그인 사용자로 자동 할당됨.
 
 import 'dart:typed_data';
 
@@ -13,14 +14,7 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/imgbb_upload.dart';
 
 class PostUploadScreen extends StatefulWidget {
-  const PostUploadScreen({
-    super.key,
-    this.selectedTargetId,
-    this.selectedTargetName,
-  });
-
-  final String? selectedTargetId;
-  final String? selectedTargetName;
+  const PostUploadScreen({super.key});
 
   @override
   State<PostUploadScreen> createState() => _PostUploadScreenState();
@@ -36,18 +30,10 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
   final List<XFile> _pickedFiles = [];
   bool _isSubmitting = false;
   String _fundingType = FirestorePostKeys.fundingTypeMoney;
-  String? _selectedTargetId;
-  String? _selectedTargetName;
-  List<Map<String, String>> _supportedTargets = [];
-  bool _isLoadingTargets = true;
 
   @override
   void initState() {
     super.initState();
-    // PostCreateChoiceScreen에서 선택된 대상이 있으면 사용
-    _selectedTargetId = widget.selectedTargetId;
-    _selectedTargetName = widget.selectedTargetName;
-    _loadSupportedTargets();
   }
 
   @override
@@ -60,150 +46,6 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
     super.dispose();
   }
 
-  /// donations와 comments 컬렉션에서 후원 중인 대상 목록 가져오기
-  Future<void> _loadSupportedTargets() async {
-    final user = AuthRepository.instance.currentUser;
-    if (user == null) {
-      if (mounted) {
-        setState(() {
-          _isLoadingTargets = false;
-          _supportedTargets = [];
-        });
-      }
-      return;
-    }
-
-    if (mounted) {
-      setState(() => _isLoadingTargets = true);
-    }
-
-    try {
-      debugPrint('[POST_UPLOAD] : 후원 대상 목록 로드 시작 - userId: ${user.id}');
-      
-      // donations에서 후원 내역 가져오기
-      final donationsSnapshot = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.donations)
-          .where(DonationKeys.userId, isEqualTo: user.id)
-          .get();
-
-      debugPrint('[POST_UPLOAD] : donations 개수: ${donationsSnapshot.docs.length}');
-
-      final postIds = <String>{};
-      for (final doc in donationsSnapshot.docs) {
-        final data = doc.data();
-        final postId = data[DonationKeys.postId] as String?;
-        if (postId != null && postId.isNotEmpty) {
-          postIds.add(postId);
-        }
-      }
-
-      // comments에서도 후원 내역 가져오기
-      final commentsSnapshot = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.comments)
-          .where(CommentKeys.userId, isEqualTo: user.id)
-          .get();
-
-      debugPrint('[POST_UPLOAD] : comments 개수: ${commentsSnapshot.docs.length}');
-
-      for (final doc in commentsSnapshot.docs) {
-        final data = doc.data();
-        final postId = data[CommentKeys.postId] as String?;
-        if (postId != null && postId.isNotEmpty) {
-          postIds.add(postId);
-        }
-      }
-
-      debugPrint('[POST_UPLOAD] : 추출된 postIds 개수: ${postIds.length}');
-
-      if (postIds.isEmpty) {
-        debugPrint('[POST_UPLOAD] : 후원 내역이 없음');
-        if (mounted) {
-          setState(() {
-            _isLoadingTargets = false;
-            _supportedTargets = [];
-          });
-        }
-        return;
-      }
-
-      // posts에서 patientId 추출
-      final postIdsList = postIds.toList();
-      final queryPostIds = postIdsList.length > 10 
-          ? postIdsList.take(10).toList() 
-          : postIdsList;
-      
-      final postsSnapshot = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.posts)
-          .where(FieldPath.documentId, whereIn: queryPostIds)
-          .get();
-
-      debugPrint('[POST_UPLOAD] : posts 조회 결과: ${postsSnapshot.docs.length}개');
-
-      final patientIds = <String>{};
-      for (final postDoc in postsSnapshot.docs) {
-        final postData = postDoc.data();
-        final patientId = postData[FirestorePostKeys.patientId] as String?;
-        if (patientId != null && patientId.isNotEmpty) {
-          patientIds.add(patientId);
-        }
-      }
-
-      debugPrint('[POST_UPLOAD] : 추출된 patientIds 개수: ${patientIds.length}');
-
-      if (patientIds.isEmpty) {
-        debugPrint('[POST_UPLOAD] : patientId가 없음');
-        if (mounted) {
-          setState(() {
-            _isLoadingTargets = false;
-            _supportedTargets = [];
-          });
-        }
-        return;
-      }
-
-      // 환자 정보 가져오기
-      final patientIdsList = patientIds.toList();
-      final queryPatientIds = patientIdsList.length > 10 
-          ? patientIdsList.take(10).toList() 
-          : patientIdsList;
-      
-      final usersSnapshot = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .where(FieldPath.documentId, whereIn: queryPatientIds)
-          .get();
-
-      debugPrint('[POST_UPLOAD] : users 조회 결과: ${usersSnapshot.docs.length}개');
-
-      final targets = <Map<String, String>>[];
-      for (final userDoc in usersSnapshot.docs) {
-        final userData = userDoc.data();
-        final nickname = userData[FirestoreUserKeys.nickname] as String? ?? '이름없음';
-        targets.add({
-          'id': userDoc.id,
-          'name': nickname,
-        });
-        debugPrint('[POST_UPLOAD] : 환자 추가 - id: ${userDoc.id}, name: $nickname');
-      }
-
-      debugPrint('[POST_UPLOAD] : 최종 후원 대상 개수: ${targets.length}');
-
-      if (mounted) {
-        setState(() {
-          _isLoadingTargets = false;
-          _supportedTargets = targets;
-        });
-      }
-    } catch (e, stackTrace) {
-      debugPrint('[POST_UPLOAD] : 후원 대상 목록 로드 오류: $e');
-      debugPrint('[POST_UPLOAD] : 스택 트레이스: $stackTrace');
-      if (mounted) {
-        setState(() {
-          _isLoadingTargets = false;
-          _supportedTargets = [];
-        });
-      }
-    }
-  }
 
   static const int _maxImages = 3;
 
@@ -306,13 +148,6 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
         FirestorePostKeys.currentAmount: 0,
       };
 
-      // 후원 대상이 선택된 경우 추가 정보 포함
-      if (_selectedTargetId != null && _selectedTargetName != null) {
-        postData['targetId'] = _selectedTargetId;
-        postData['targetName'] = _selectedTargetName;
-        debugPrint('[SYSTEM] : 후원 대상 선택됨 - ID: $_selectedTargetId, 이름: $_selectedTargetName');
-      }
-
       final ref = FirebaseFirestore.instance.collection(FirestoreCollections.posts).doc();
       await ref.set(postData);
       debugPrint('[SYSTEM] : Firestore 게시물 저장 완료 docId=${ref.id}');
@@ -339,7 +174,7 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('환자 사연 신청'),
+        title: const Text('투병기록 남기기'),
         backgroundColor: AppColors.yellow,
         foregroundColor: AppColors.textPrimary,
       ),
@@ -352,221 +187,6 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 후원 대상 선택 섹션
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.inactiveBackground.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.textSecondary.withValues(alpha: 0.2)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.person_outline, size: 20, color: AppColors.textPrimary),
-                            SizedBox(width: 8),
-                            Text(
-                              '사연의 주인공을 선택해주세요',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (_isLoadingTargets)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                          )
-                        else if (_supportedTargets.isNotEmpty) ...[
-                          // 가로형 환자 리스트
-                          SizedBox(
-                            height: 100,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _supportedTargets.length + 1, // +1 for "일반 사연"
-                              itemBuilder: (context, index) {
-                                if (index == 0) {
-                                  // 일반 사연 옵션
-                                  final isSelected = _selectedTargetId == null;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 12),
-                                    child: InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedTargetId = null;
-                                          _selectedTargetName = null;
-                                        });
-                                      },
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Container(
-                                        width: 80,
-                                        decoration: BoxDecoration(
-                                          color: isSelected ? AppColors.yellow.withValues(alpha: 0.3) : Colors.white,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: isSelected 
-                                                ? AppColors.yellow 
-                                                : AppColors.textSecondary.withValues(alpha: 0.2),
-                                            width: isSelected ? 2 : 1,
-                                          ),
-                                        ),
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.description_outlined,
-                                              size: 32,
-                                              color: isSelected ? AppColors.yellow : AppColors.textSecondary,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '일반 사연',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                                color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                                
-                                final target = _supportedTargets[index - 1];
-                                final isSelected = _selectedTargetId == target['id'];
-                                return Padding(
-                                  padding: EdgeInsets.only(right: index == _supportedTargets.length ? 0 : 12),
-                                  child: InkWell(
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedTargetId = target['id'];
-                                        _selectedTargetName = target['name'];
-                                      });
-                                    },
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      width: 80,
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? AppColors.coral.withValues(alpha: 0.2) : Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isSelected 
-                                              ? AppColors.coral 
-                                              : AppColors.textSecondary.withValues(alpha: 0.2),
-                                          width: isSelected ? 2 : 1,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 24,
-                                            backgroundColor: AppColors.coral.withValues(alpha: 0.2),
-                                            child: Text(
-                                              (target['name']?.isNotEmpty ?? false) 
-                                                  ? target['name']![0].toUpperCase() 
-                                                  : '?',
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.coral,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                                            child: Text(
-                                              target['name'] ?? '이름없음',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                                color: AppColors.textPrimary,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // 선택된 대상 표시
-                          if (_selectedTargetId != null && _selectedTargetName != null)
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.coral.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.check_circle, size: 16, color: AppColors.coral),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '선택됨: $_selectedTargetName',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ] else ...[
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.inactiveBackground,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  size: 20,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '후원 중인 대상이 없습니다. 일반 사연으로 등록됩니다.',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                   TextFormField(
                     controller: _titleController,
                     decoration: const InputDecoration(

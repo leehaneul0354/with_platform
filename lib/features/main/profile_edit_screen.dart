@@ -9,6 +9,8 @@ import '../../core/constants/assets.dart';
 import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/with_header.dart';
 import '../../shared/widgets/role_badge.dart';
+import '../../shared/widgets/profile_avatar.dart';
+import '../../shared/widgets/safe_image_asset.dart';
 
 /// WITH 포인트 컬러 #FFD400
 const Color _kYellow = Color(0xFFFFD400);
@@ -38,6 +40,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   DateTime? _birthDate;
   String? _birthDateError;
+  String? _selectedProfileImage;
 
   @override
   void initState() {
@@ -71,6 +74,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _loading = false;
       _nicknameController.text = (_user?.nickname ?? '').trim();
       _birthDate = BirthDateUtil.storedToDateTime(_user?.birthDate);
+      _selectedProfileImage = _user?.profileImage;
     });
   }
 
@@ -83,6 +87,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           _user = fetched;
           _nicknameController.text = (_user?.nickname ?? '').trim();
           _birthDate = BirthDateUtil.storedToDateTime(_user?.birthDate);
+          _selectedProfileImage = _user?.profileImage;
         });
       }
     }
@@ -118,7 +123,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     setState(() => _saving = true);
     try {
       final birthIso = _birthDate != null ? BirthDateUtil.dateTimeToIso(_birthDate!) : (u.birthDate ?? '');
-      final updated = u.copyWith(nickname: nickname, birthDate: birthIso.isEmpty ? null : birthIso);
+      final profileImageFileName = _selectedProfileImage != null && _selectedProfileImage!.isNotEmpty
+          ? AppAssets.getFileName(_selectedProfileImage!)
+          : null;
+      final updated = u.copyWith(
+        nickname: nickname,
+        birthDate: birthIso.isEmpty ? null : birthIso,
+        profileImage: profileImageFileName,
+      );
       await AuthRepository.instance.updateUser(updated);
       await AuthRepository.instance.setCurrentUser(updated);
       // Firestore에서 최신 정보 다시 로드하여 역할 변경 등 반영
@@ -213,35 +225,27 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 48,
-                    backgroundColor: _kReadOnlyBg,
-                    child: ClipOval(
-                      child: Image.asset(
-                        WithMascots.profileDefault,
-                        width: 96,
-                        height: 96,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 48, color: AppColors.textSecondary),
-                      ),
+            GestureDetector(
+              onTap: () => _showMascotSelector(),
+              child: Center(
+                child: Stack(
+                  children: [
+                    ProfileAvatar(
+                      profileImage: _selectedProfileImage,
+                      radius: 48,
+                      backgroundColor: _kReadOnlyBg,
                     ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: GestureDetector(
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('프로필 이미지 변경은 준비 중입니다.'))),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: _kYellow, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
                         child: const Icon(Icons.edit, color: AppColors.textPrimary, size: 18),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -391,6 +395,110 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       fillColor: const Color(0xFFF5F5F5),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
+
+  void _showMascotSelector() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _MascotSelectorBottomSheet(
+        currentSelection: _selectedProfileImage,
+        onSelected: (imagePath) {
+          setState(() {
+            _selectedProfileImage = imagePath;
+          });
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+}
+
+/// 마스코트 선택 바텀시트
+class _MascotSelectorBottomSheet extends StatelessWidget {
+  const _MascotSelectorBottomSheet({
+    required this.currentSelection,
+    required this.onSelected,
+  });
+
+  final String? currentSelection;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '마스코트 선택',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: AppAssets.profileMascots.length,
+              itemBuilder: (context, index) {
+                final mascotPath = AppAssets.profileMascots[index];
+                final isSelected = currentSelection == mascotPath;
+                return GestureDetector(
+                  onTap: () => onSelected(mascotPath),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                        width: isSelected ? 3 : 1,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(13),
+                      child: SafeImageAsset(
+                        assetPath: mascotPath,
+                        fit: BoxFit.contain,
+                        fallback: Icon(
+                          Icons.face,
+                          size: 50,
+                          color: AppColors.textSecondary.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 }

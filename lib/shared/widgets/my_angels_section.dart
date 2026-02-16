@@ -10,6 +10,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../shared/widgets/safe_image_asset.dart';
+import '../../shared/widgets/user_profile_avatar.dart';
 import '../../../features/post/post_detail_screen.dart';
 
 /// 내가 후원하는 천사들 섹션
@@ -408,17 +409,10 @@ class _AngelProfileCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(
+            UserProfileAvatar(
+              userId: userId,
               radius: 28,
               backgroundColor: AppColors.coral.withValues(alpha: 0.2),
-              child: Text(
-                nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.coral,
-                ),
-              ),
             ),
             const SizedBox(height: 8),
             Padding(

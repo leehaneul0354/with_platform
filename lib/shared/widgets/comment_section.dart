@@ -7,6 +7,7 @@ import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
+import 'user_profile_avatar.dart';
 
 class CommentSection extends StatefulWidget {
   const CommentSection({
@@ -278,6 +279,12 @@ class _CommentItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              // 댓글 작성자 프로필 아바타
+              UserProfileAvatar(
+                userId: userId,
+                radius: 16,
+              ),
+              const SizedBox(width: 10),
               Text(
                 userName,
                 style: TextStyle(

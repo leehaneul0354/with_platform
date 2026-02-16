@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/donation_service.dart';
+import 'user_profile_avatar.dart';
 
 /// 후원자 한 명 항목 (순위, 이름, 금액)
 class DonorRankItem extends StatelessWidget {
@@ -15,11 +16,13 @@ class DonorRankItem extends StatelessWidget {
     required this.rank,
     required this.name,
     required this.amountString,
+    this.userId,
   });
 
   final int rank;
   final String name;
   final String amountString;
+  final String? userId;
 
   @override
   Widget build(BuildContext context) {
@@ -37,14 +40,19 @@ class DonorRankItem extends StatelessWidget {
               ),
             ),
           ),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.inactiveBackground,
-            child: Text(
-              name.isNotEmpty ? name[0] : '?',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-            ),
-          ),
+          userId != null && userId!.isNotEmpty
+              ? UserProfileAvatar(
+                  userId: userId!,
+                  radius: 18,
+                )
+              : CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.inactiveBackground,
+                  child: Text(
+                    name.isNotEmpty ? name[0] : '?',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  ),
+                ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -77,7 +85,7 @@ class DonorRankList extends StatelessWidget {
   });
 
   final String title;
-  final List<({int rank, String name, String amountString})> items;
+  final List<({int rank, String name, String amountString, String? userId})> items;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +111,7 @@ class DonorRankList extends StatelessWidget {
                 rank: e.rank,
                 name: e.name,
                 amountString: e.amountString,
+                userId: e.userId,
               ),
             ),
           ],
@@ -180,7 +189,6 @@ class _DonorRankListFromFirestoreState extends State<DonorRankListFromFirestore>
             ),
           );
         }
-        final docs = snapshot.data?.docs ?? [];
         final newTop = topDonorsFromSnapshot(
           snapshot.data!,
           topN: widget.topN,
@@ -225,13 +233,14 @@ class _DonorRankListFromFirestoreState extends State<DonorRankListFromFirestore>
           return '$v원';
         }
 
-        final items = <({int rank, String name, String amountString})>[];
+        final items = <({int rank, String name, String amountString, String? userId})>[];
         for (var i = 0; i < _topDonors.length; i++) {
           final e = _topDonors[i];
           items.add((
             rank: i + 1,
             name: _nicknames[e.userId] ?? '로딩 중',
             amountString: formatAmount(e.totalAmount),
+            userId: e.userId,
           ));
         }
 

@@ -13,6 +13,7 @@ import '../../core/services/admin_service.dart' show showDeletePostConfirmDialog
 import '../../features/post/post_detail_screen.dart';
 import 'safe_image_asset.dart';
 import 'shimmer_image.dart';
+import 'user_profile_avatar.dart';
 
 class StoryFeedCard extends StatelessWidget {
   const StoryFeedCard({
@@ -58,6 +59,12 @@ class StoryFeedCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
               child: Row(
                 children: [
+                  // 작성자 프로필 아바타
+                  UserProfileAvatar(
+                    userId: patientId,
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       patientName,

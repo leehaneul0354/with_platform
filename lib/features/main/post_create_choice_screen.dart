@@ -22,9 +22,6 @@ class PostCreateChoiceScreen extends StatefulWidget {
 }
 
 class _PostCreateChoiceScreenState extends State<PostCreateChoiceScreen> {
-  String? _selectedTargetId;
-  String? _selectedTargetName;
-
   @override
   Widget build(BuildContext context) {
     final user = AuthRepository.instance.currentUser;
@@ -112,20 +109,49 @@ class _PostCreateChoiceScreenState extends State<PostCreateChoiceScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               // 환자 전용 작성 기능 (환자만 보임)
               if (isPatient) ...[
-                const Divider(),
-                const SizedBox(height: 16),
-                const Text(
-                  '내 게시물 작성',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.edit_note,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '내 게시물 작성',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '환자님만 게시물을 작성할 수 있습니다.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                 _ChoiceCard(
                   icon: Icons.medical_services_outlined,
                   iconBg: AppColors.coral.withValues(alpha: 0.2),
@@ -162,6 +188,9 @@ class _PostCreateChoiceScreenState extends State<PostCreateChoiceScreen> {
                       MaterialPageRoute(builder: (_) => const PatientMyContentScreen()),
                     );
                   },
+                ),
+                    ],
+                  ),
                 ),
               ],
               if (isAdmin) ...[

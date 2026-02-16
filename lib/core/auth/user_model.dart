@@ -46,6 +46,8 @@ class UserModel {
   final UserStatus status;
   /// 생년월일 YYMMDD (예: 030504). 비밀번호 찾기·회원가입 필수.
   final String? birthDate;
+  /// 프로필 이미지 파일명 (예: 'profile_yellow.png' 또는 'mascot_pink.png')
+  final String? profileImage;
 
   UserModel({
     required this.id,
@@ -59,6 +61,7 @@ class UserModel {
     this.isVerified = false,
     UserStatus? status,
     this.birthDate,
+    this.profileImage,
   }) : status = status ?? (isVerified ? UserStatus.verified : UserStatus.pending);
 
   /// 관리자 여부 (type == admin 과 동일, 호환용)
@@ -86,6 +89,29 @@ class UserModel {
     final joinedAt = _readString(json, FirestoreUserKeys.joinedAt) ?? json[FirestoreUserKeys.createdAt]?.toString() ?? '';
     final verified = json[FirestoreUserKeys.isVerified] == true;
     final birthDate = _readBirthDate(json) ?? '';
+    String? profileImage = _readString(json, FirestoreUserKeys.profileImage);
+    
+    // profileImage 정규화: with_mascot.png 제거 및 빈 값 처리
+    if (profileImage != null && profileImage.isNotEmpty) {
+      // with_mascot.png 같은 존재하지 않는 파일명을 기본값으로 교체
+      if (profileImage.contains('with_mascot.png')) {
+        profileImage = 'profile_yellow.png';
+      } else {
+        // 중복 경로 제거 및 파일명만 추출
+        profileImage = profileImage
+            .replaceAll('assets/assets/', '')
+            .replaceAll('assets/images/', '')
+            .trim();
+        
+        // 처리 후 빈 문자열이면 null로 설정
+        if (profileImage.isEmpty) {
+          profileImage = null;
+        }
+      }
+    }
+    
+    // 최종적으로 null이거나 비어있으면 기본값 할당
+    profileImage = profileImage?.isEmpty == true ? null : profileImage;
 
     return UserModel(
       id: id,
@@ -98,6 +124,7 @@ class UserModel {
       isVerified: verified,
       status: verified ? UserStatus.verified : UserStatus.pending,
       birthDate: birthDate.isEmpty ? null : birthDate,
+      profileImage: profileImage,
     );
   }
 
@@ -146,6 +173,30 @@ class UserModel {
 
   /// Firestore 저장 시 FirestoreUserKeys 사용. null 필드는 '' 처리.
   Map<String, dynamic> toJson() {
+    // profileImage 정규화: with_mascot.png 제거 및 파일명만 저장
+    String? normalizedProfileImage = profileImage;
+    
+    if (normalizedProfileImage != null && normalizedProfileImage.isNotEmpty) {
+      // with_mascot.png 같은 존재하지 않는 파일명 제거
+      if (normalizedProfileImage.contains('with_mascot.png')) {
+        normalizedProfileImage = 'profile_yellow.png';
+      } else {
+        // 중복 경로 제거 및 파일명만 추출
+        normalizedProfileImage = normalizedProfileImage
+            .replaceAll('assets/assets/', '')
+            .replaceAll('assets/images/', '')
+            .trim();
+        
+        // 처리 후 빈 문자열이면 기본값 할당
+        if (normalizedProfileImage.isEmpty) {
+          normalizedProfileImage = 'profile_yellow.png';
+        }
+      }
+    } else {
+      // null이거나 비어있으면 기본값 할당
+      normalizedProfileImage = 'profile_yellow.png';
+    }
+    
     return {
       FirestoreUserKeys.userId: id,
       FirestoreUserKeys.id: id,
@@ -157,6 +208,7 @@ class UserModel {
       FirestoreUserKeys.trustScore: trustScore,
       FirestoreUserKeys.joinedAt: joinedAt,
       FirestoreUserKeys.birthDate: birthDate ?? '',
+      FirestoreUserKeys.profileImage: normalizedProfileImage,
     };
   }
 
@@ -169,6 +221,7 @@ class UserModel {
     UserStatus? status,
     String? password,
     String? birthDate,
+    String? profileImage,
   }) {
     final newVerified = isVerified ?? this.isVerified;
     final newStatus = status ?? (isVerified != null ? (isVerified ? UserStatus.verified : UserStatus.pending) : this.status);
@@ -183,6 +236,7 @@ class UserModel {
       isVerified: newVerified,
       status: newStatus,
       birthDate: birthDate ?? this.birthDate,
+      profileImage: profileImage ?? this.profileImage,
     );
   }
 }

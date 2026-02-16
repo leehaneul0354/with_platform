@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
+import '../../core/auth/auth_repository.dart';
+import 'profile_avatar.dart';
 
 /// UI2 시안 Yellow #FFD400
 const Color _headerYellow = Color(0xFFFFD400);
@@ -70,18 +72,10 @@ class CurvedYellowHeader extends StatelessWidget implements PreferredSizeWidget 
             child: InkWell(
               onTap: onPersonTap,
               borderRadius: BorderRadius.circular(24),
-              child: CircleAvatar(
+              child: ProfileAvatar(
+                profileImage: AuthRepository.instance.currentUser?.profileImage,
                 radius: 20,
                 backgroundColor: Colors.white,
-                child: ClipOval(
-                  child: Image.asset(
-                    WithMascots.profileDefault,
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.person, color: AppColors.textPrimary, size: 24),
-                  ),
-                ),
               ),
             ),
           ),

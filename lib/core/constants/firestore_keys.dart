@@ -121,6 +121,9 @@ class FirestoreUserKeys {
   /// WITH Pay 잔액 (int, 기본값 0)
   static const String withPayBalance = 'withPayBalance';
 
+  /// 프로필 이미지 파일명 (예: 'profile_yellow.png' 또는 'mascot_pink.png')
+  static const String profileImage = 'profileImage';
+
   /// 레거시/콘솔용 별칭 (읽기 시에만 사용)
   static const String name = 'name';
   static const String birthdate = 'birthdate';

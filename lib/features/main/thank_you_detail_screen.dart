@@ -12,6 +12,7 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/comment_section.dart';
+import '../../shared/widgets/user_profile_avatar.dart';
 import '../post/post_detail_screen.dart';
 
 class ThankYouDetailScreen extends StatefulWidget {
@@ -475,6 +476,12 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 작성자 프로필 아바타
+                      UserProfileAvatar(
+                        userId: postData[FirestorePostKeys.patientId]?.toString() ?? '',
+                        radius: 24,
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
