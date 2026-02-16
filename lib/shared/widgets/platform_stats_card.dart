@@ -42,7 +42,6 @@ class PlatformStatsCard extends StatelessWidget {
           final v = data?[PlatformStatsKeys.totalDonation];
           if (v is int) total = v;
           else if (v is num) total = v.toInt();
-          debugPrint('[SYSTEM] : 피드 후원 현황 카드 — totalDonation=$total');
         }
         final amountString = _formatAmount(total);
         return MainVisualCard(

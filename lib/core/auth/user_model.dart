@@ -222,6 +222,7 @@ class UserModel {
     String? password,
     String? birthDate,
     String? profileImage,
+    UserType? type,
   }) {
     final newVerified = isVerified ?? this.isVerified;
     final newStatus = status ?? (isVerified != null ? (isVerified ? UserStatus.verified : UserStatus.pending) : this.status);
@@ -230,7 +231,7 @@ class UserModel {
       email: email ?? this.email,
       password: password ?? this.password,
       nickname: nickname ?? this.nickname,
-      type: type,
+      type: type ?? this.type,
       trustScore: trustScore ?? this.trustScore,
       joinedAt: joinedAt ?? this.joinedAt,
       isVerified: newVerified,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'package:with_platform/core/auth/auth_repository.dart';
 import 'package:with_platform/core/services/donation_service.dart';
 import 'package:with_platform/features/splash/splash_screen.dart';
+import 'package:with_platform/core/navigation/app_route_observer.dart';
 import 'package:with_platform/shared/widgets/app_error_page.dart';
 
 void main() async {
@@ -11,6 +13,11 @@ void main() async {
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: false,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
   await AuthRepository.instance.loadCurrentUser();
@@ -32,6 +39,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'WITH Platform',
       debugShowCheckedModeBanner: false,
+      navigatorObservers: [routeObserver],
       theme: ThemeData(
         primarySwatch: Colors.orange,
         useMaterial3: true,

@@ -24,10 +24,15 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   bool _loading = true;
   String _selectedFilter = '전체'; // '전체', '후원자', '환자'
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _pendingPostsStream;
 
   @override
   void initState() {
     super.initState();
+    _pendingPostsStream = _firestore
+        .collection(FirestoreCollections.posts)
+        .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.pending)
+        .snapshots();
     _loadUsers();
   }
 
@@ -143,12 +148,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                           totalSupporters = (data?[PlatformStatsKeys.totalSupporters] as num?)?.toInt() ?? 0;
                         }
                         
-                        // 승인 대기 사연 수 조회
-                        return StreamBuilder<QuerySnapshot>(
-                          stream: _firestore
-                              .collection(FirestoreCollections.posts)
-                              .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.pending)
-                              .snapshots(),
+                        // 승인 대기 사연 수 조회 (initState에서 1회 생성해 중복 구독 방지)
+                        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: _pendingPostsStream,
                           builder: (context, pendingPostsSnapshot) {
                             if (!mounted) return const SizedBox.shrink();
                             

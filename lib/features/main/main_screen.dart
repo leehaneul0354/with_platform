@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/navigation/app_route_observer.dart';
 import '../../core/util/responsive_util.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/widgets/curved_yellow_header.dart';
@@ -33,16 +34,26 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with RouteAware {
   bool _isFeedSelected = true;
   int _bottomIndex = 0;
+  /// 통신 지연/갱신 중에도 관리자 UI 유지. 로그아웃 시에만 false로 리셋.
+  bool _lastKnownAdmin = false;
 
   bool get _isLoggedIn => AuthRepository.instance.currentUser != null;
   String? get _currentNickname => AuthRepository.instance.currentUser?.nickname;
 
-  bool get _isAdmin =>
-      AuthRepository.instance.currentUser?.type == UserType.admin ||
-      AuthRepository.instance.currentUser?.isAdmin == true;
+  /// currentUser 기준 + 마지막으로 알려진 admin 상태로 5탭 유지(권한 유실 방지)
+  bool get _isAdmin {
+    final cur = AuthRepository.instance.currentUser;
+    if (cur == null) {
+      _lastKnownAdmin = false;
+      return false;
+    }
+    final isAdmin = cur.type == UserType.admin || cur.isAdmin == true;
+    if (isAdmin) _lastKnownAdmin = true;
+    return isAdmin || _lastKnownAdmin;
+  }
 
   void _onBottomTab(int index) {
     // 일반 유저의 경우: 홈(0), 사연등록(1), 마이페이지(2)
@@ -105,12 +116,16 @@ class _MainScreenState extends State<MainScreen> {
       case 1: // 관리자 컨트롤 타워 (AdminMainScreen)
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const AdminMainScreen()),
-        );
+        ).then((_) {
+          if (mounted) setState(() {});
+        });
         break;
       case 2: // 추가 (사연등록)
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
-        );
+        ).then((_) {
+          if (mounted) setState(() {});
+        });
         break;
       case 3: // 마이페이지
         setState(() => _bottomIndex = 3);
@@ -118,7 +133,9 @@ class _MainScreenState extends State<MainScreen> {
       case 4: // 관리자 세부설정 (AdminDashboardScreen)
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-        );
+        ).then((_) {
+          if (mounted) setState(() {});
+        });
         break;
     }
   }
@@ -178,14 +195,55 @@ class _MainScreenState extends State<MainScreen> {
     // 추후 후원 플로우
   }
 
+  /// 폭포수형 로딩: 유저 확인 → 300ms → 피드 허용 → 300ms → 잔액/후원 현황 허용 (동시 구독 병목 방지)
+  bool _phaseFeedReady = false;
+  bool _phaseStatsReady = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await AuthRepository.instance.ensureAuthSync();
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      setState(() => _phaseFeedReady = true);
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      setState(() => _phaseStatsReady = true);
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.unsubscribe(this);
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    super.didPopNext();
+    _refreshUserAndSyncUI();
+  }
+
+  /// 하위 화면에서 복귀 시 Firestore에서 최신 유저(role 포함) 로드 후 UI 동기화
+  Future<void> _refreshUserAndSyncUI() async {
+    final userId = AuthRepository.instance.currentUser?.id;
+    if (userId != null) {
+      await AuthRepository.instance.fetchUserFromFirestore(userId);
+    }
+    if (mounted) setState(() {});
   }
 
   void _navigateToLogin() {
@@ -203,6 +261,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _navigateToProfileEdit() {
+    final userId = AuthRepository.instance.currentUser?.id;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProfileEditScreen(
@@ -211,7 +270,12 @@ class _MainScreenState extends State<MainScreen> {
           },
         ),
       ),
-    ).then((_) {
+    ).then((_) async {
+      if (!mounted) return;
+      // 프로필 복귀 시 Firestore에서 최신 유저(role 포함) 로드 후 UI 강제 동기화 — 관리자 5탭 유지
+      if (userId != null) {
+        await AuthRepository.instance.fetchUserFromFirestore(userId);
+      }
       if (mounted) setState(() {});
     });
   }
@@ -279,10 +343,9 @@ class _MainScreenState extends State<MainScreen> {
     return [homeScreen, myPageScreen];
   }
 
-  /// BottomNavigationBar의 currentIndex 계산
+  /// BottomNavigationBar의 currentIndex 계산. _isAdmin이 true면 무조건 5탭 구간(0~4) 유지
   int _getBottomNavIndex() {
     if (_isAdmin) {
-      // 관리자: 0~4 범위
       return _bottomIndex.clamp(0, 4);
     } else {
       // 일반 유저: 0~2 범위
@@ -327,11 +390,16 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: PlatformStatsCard(
-                  subtitle: _isLoggedIn
-                      ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
-                      : '반갑습니다',
-                ),
+                child: _phaseStatsReady
+                    ? PlatformStatsCard(
+                        subtitle: _isLoggedIn
+                            ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
+                            : '반갑습니다',
+                      )
+                    : const SizedBox(
+                        height: 100,
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
               ),
               const SizedBox(height: 8),
               TodayFeedToggle(
@@ -342,7 +410,15 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         if (_isFeedSelected) ...[
-          const ApprovedPostsFeedSliver(),
+          if (_phaseFeedReady)
+            const ApprovedPostsFeedSliver()
+          else
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            ),
           const CompletedPostsSliver(),
         ] else
           SliverToBoxAdapter(
@@ -382,6 +458,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    // 모바일 + 홈(0)일 때만 appBar를 비워서, body 내 SliverAppBar(노란 헤더) 하나만 보이게 함. 이중 AppBar 방지.
+    final showHeaderInBody = isMobile && _bottomIndex == 0;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -391,7 +470,7 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
       child: Scaffold(
-        appBar: (ResponsiveHelper.isMobile(context) && _bottomIndex == 0)
+        appBar: showHeaderInBody
             ? null
             : CurvedYellowHeader(
                 isLoggedIn: _isLoggedIn,
@@ -401,7 +480,7 @@ class _MainScreenState extends State<MainScreen> {
           index: _getIndexedStackIndex(),
           children: _buildIndexedStackChildren(),
         ),
-        bottomNavigationBar: ResponsiveHelper.isMobile(context)
+        bottomNavigationBar: isMobile
             ? BottomNavBar(
                 currentIndex: _getBottomNavIndex(),
                 onTabSelected: _onBottomTab,
@@ -409,7 +488,7 @@ class _MainScreenState extends State<MainScreen> {
                 isAdmin: _isAdmin,
               )
             : null,
-        floatingActionButton: ResponsiveHelper.isMobile(context)
+        floatingActionButton: isMobile
             ? null
             : Padding(
                 padding: const EdgeInsets.only(bottom: 24),

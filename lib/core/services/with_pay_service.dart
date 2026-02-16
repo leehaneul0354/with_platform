@@ -8,6 +8,9 @@ import '../constants/firestore_keys.dart';
 
 final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+/// userId별 잔액 스트림 캐시 — 동일 사용자에 대해 한 번만 구독 (중복 로그/구독 방지)
+final Map<String, Stream<DocumentSnapshot<Map<String, dynamic>>>> _balanceStreamCache = {};
+
 /// 사용자 WITH Pay 잔액 한 번 읽기 (없으면 0)
 Future<int> getWithPayBalance(String userId) async {
   try {
@@ -24,13 +27,15 @@ Future<int> getWithPayBalance(String userId) async {
   }
 }
 
-/// 사용자 잔액 실시간 스트림 (마이페이지·후원 화면 반영용)
+/// 사용자 잔액 실시간 스트림 (마이페이지·후원 화면 반영용). userId당 1회만 구독·로그.
 Stream<DocumentSnapshot<Map<String, dynamic>>> withPayBalanceStream(String userId) {
-  debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$userId');
-  return _firestore
-      .collection(FirestoreCollections.users)
-      .doc(userId)
-      .snapshots();
+  return _balanceStreamCache.putIfAbsent(userId, () {
+    debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$userId (1회)');
+    return _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .snapshots();
+  });
 }
 
 /// 스냅샷에서 잔액 추출 (없으면 0)

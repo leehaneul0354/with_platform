@@ -56,13 +56,16 @@ Future<void> addDonation({
   }
 }
 
-/// platform_stats 문서 스트림 (실시간 표시용)
+/// platform_stats 문서 스트림 (실시간 표시용). 단일 구독만 유지해 Firestore assertion/중복 리스너 방지.
+Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedPlatformStatsStream;
+
 Stream<DocumentSnapshot<Map<String, dynamic>>> platformStatsStream() {
-  debugPrint('[SYSTEM] : platform_stats 스트림 구독');
-  return _firestore
+  _cachedPlatformStatsStream ??= _firestore
       .collection(FirestoreCollections.platformStats)
       .doc(kPlatformStatsDocId)
-      .snapshots();
+      .snapshots()
+      .asBroadcastStream();
+  return _cachedPlatformStatsStream!;
 }
 
 /// 테스트용 결제 시뮬레이션. 2초 대기 후 ① donations 문서 생성 ② platform_stats increment ③ post currentAmount increment.
@@ -114,7 +117,6 @@ Future<bool> processPayment({
 
 /// 해당 사용자의 후원 내역 스트림 (마이페이지용)
 Stream<QuerySnapshot<Map<String, dynamic>>> donationsStreamByUser(String userId) {
-  debugPrint('[PAYMENT] : donations 스트림 구독 — userId=$userId');
   return _firestore
       .collection(FirestoreCollections.donations)
       .where(DonationKeys.userId, isEqualTo: userId)

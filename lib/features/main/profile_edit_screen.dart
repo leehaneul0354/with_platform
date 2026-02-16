@@ -126,7 +126,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final profileImageFileName = _selectedProfileImage != null && _selectedProfileImage!.isNotEmpty
           ? AppAssets.getFileName(_selectedProfileImage!)
           : null;
-      final updated = u.copyWith(
+      // role/type은 항상 AuthRepository.currentUser 기준으로 유지 (관리자 강등 방지)
+      final sourceForRole = AuthRepository.instance.currentUser ?? u;
+      final updated = sourceForRole.copyWith(
         nickname: nickname,
         birthDate: birthIso.isEmpty ? null : birthIso,
         profileImage: profileImageFileName,

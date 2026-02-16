@@ -27,6 +27,7 @@
   - **게시글 상세 후원 UI 조건부:** `PostDetailScreen`에서 `isDonationRequest == false`(일반 기록)일 때 하단 '후원하기' 버튼 및 사용 목적(usagePurpose) 블록을 숨김. 후원 요청 게시물에서만 후원 관련 UI 노출.
   - **피드/투데이 하트(좋아요) 아이콘:** `StoryFeedCard`, `TodayThankYouGrid`, `PatientPostsListScreen`, `PatientMyContentScreen`에서 `isLikedStream` 기반으로 미좋아요 시 `Icons.favorite_border`, 좋아요 시 `Icons.favorite` + `AppColors.coral`. 상세 화면(PostDetailScreen, ThankYouDetailScreen) 좋아요 아이콘도 동일 브랜드 컬러 적용. 피드 카드에서 하트 탭 시 `toggleLike` 호출로 즉시 반영.
   - **관리자 대시보드 일반/후원 구분:** 투병 기록 승인 탭에서 카드별 **[일반 기록]**(푸른 배지) / **[후원 요청]**(코랄 배지) 표시. 상세 풀시트 상단에 동일 태그 노출, 후원 요청 시 '후원 요청 요약' 섹션(후원 유형·목표 금액·필요 물품·수량·배송 정보·병원명·사용 목적) 표시. 상단 ChoiceChip 필터 [전체 / 일반 기록 / 후원 요청]로 검수 우선순위 조절.
+  - **Firestore 동시 구독 병목 완화 (ID: ca9):** (1) `main.dart` — Firebase 초기화 직후 `Firestore.settings`(persistenceEnabled: false, cacheSizeBytes: CACHE_SIZE_UNLIMITED) 적용. (2) `MainScreen` — 폭포수형 순차 로딩: 유저 확인 → 300ms → 피드 허용(_phaseFeedReady) → 300ms → 잔액/후원 허용(_phaseStatsReady). (3) `approved_posts_feed.dart` — 승인 피드 스트림 전역 캐시 1회 생성, 로그 1회. (4) `with_pay_service.dart` — userId별 잔액 스트림 캐시로 1회만 구독·로그.
 
 ---
 
@@ -36,7 +37,7 @@
 
 | 경로 | 역할 |
 |------|------|
-| `lib/main.dart` | 앱 진입점. loadCurrentUser 후 WithApp → MainScreen |
+| `lib/main.dart` | 앱 진입점. Firebase 초기화 후 Firestore settings(persistenceEnabled: false). loadCurrentUser 후 WithApp → MainScreen |
 | `lib/core/constants/app_colors.dart` | 전역 색상 상수 AppColors (yellow/coral/textPrimary 등) |
 | `lib/core/constants/admin_account.dart` | 관리자 계정 상수 AdminAccount (id: admin, password: admin0000) |
 | `lib/core/constants/assets.dart` | WithMascots(마스코트 이미지 경로). `images/xxx` 사용 → 웹 빌드 시 build/web/assets/images/ 로 출력 |
@@ -54,7 +55,7 @@
 | `lib/shared/widgets/login_prompt_dialog.dart` | LoginPromptDialog (onLoginTap/onSignupTap으로 해당 화면 이동) |
 | `lib/shared/widgets/feed_card.dart` | FeedCard (피드 한 건: authorName, likeCount, bodyText 등) |
 | `lib/shared/widgets/donor_rank_list.dart` | DonorRankList / DonorRankItem (후원자 순위) |
-| `lib/features/main/main_screen.dart` | MainScreen. admin 로그인 시 AdminMainScreen으로 pushReplacement, initState 가드 |
+| `lib/features/main/main_screen.dart` | MainScreen. 폭포수형 순차 로딩(_phaseFeedReady/_phaseStatsReady), admin 로그인 시 AdminMainScreen pushReplacement |
 | `lib/features/main/main_content_mobile.dart` | MainContentMobile (displayNickname으로 첫 피드 작성자명) |
 | `lib/features/main/main_content_desktop.dart` | MainContentDesktop (displayNickname으로 첫 피드 작성자명) |
 | `lib/features/auth/login_screen.dart` | LoginScreen (아이디/비밀번호, 관리자·일반 로그인, 회원가입 링크) |
@@ -63,7 +64,7 @@
 | `lib/features/admin/admin_member_detail_screen.dart` | 회원 상세: 기본정보·Trust Score·투병/후원 영역·인증 완료·저장 |
 | `lib/core/constants/firestore_keys.dart` | FirestorePostKeys(type/typeStruggle/typeThanks), ThankYouPostKeys, FirestoreCollections(thankYouPosts, todayThankYou) |
 | `lib/core/services/imgbb_upload.dart` | ImgBB API 업로드. imgbbApiKey, readAsBytes→base64→POST, data.url 반환. [SYSTEM] 로그 |
-| `lib/core/services/with_pay_service.dart` | getWithPayBalance, withPayBalanceStream, balanceFromSnapshot, rechargeWithPay(Transaction·recharges 저장) |
+| `lib/core/services/with_pay_service.dart` | getWithPayBalance, withPayBalanceStream(userId별 캐시 1회 구독), balanceFromSnapshot, rechargeWithPay |
 | `lib/core/services/payment_method.dart` | PaymentMethod(card/kakao/naver/toss) enum |
 | `lib/core/services/payment_service.dart` | startPay(context, userId, amount, method) — PG 교체용 진입점, 현재 가상 결제 |
 | `lib/core/services/donation_service.dart` | processPaymentWithWithPay(Transaction: 잔액 차감·donations·stats·post), donationsStreamByUser |
@@ -75,6 +76,7 @@
 | `lib/features/post/post_upload_screen.dart` | 투병 기록: 제목/내용(20자 이상)/사진(0~3장), type struggle, "검토 후 업로드됩니다." |
 | `lib/features/post/post_detail_screen.dart` | 승인된 사연 상세. isDonationRequest일 때만 후원하기 버튼·usagePurpose 블록 노출. 좋아요 아이콘 coral. |
 | `lib/shared/widgets/story_feed_card.dart` | 피드 카드. isLikedStream 기반 빈하트/채운하트(coral), 하트 탭 시 toggleLike. |
+| `lib/shared/widgets/approved_posts_feed.dart` | 승인 피드 스트림 전역 캐시(_approvedPostsStream), ApprovedPostsFeed/Sliver·CompletedPostsSliver |
 | `lib/shared/widgets/today_thank_you_grid.dart` | 투데이 감사편지 그리드. isLikedStream 기반 하트 아이콘·탭 토글. |
 | `lib/features/main/thank_you_detail_screen.dart` | 감사편지 상세. 좋아요 아이콘 AppColors.coral 적용. |
 | `lib/features/admin/admin_dashboard_screen.dart` | 탭 [투병 기록 승인][감사 편지 승인]. 투병 기록: 필터(전체/일반/후원), 카드 배지(일반 기록·후원 요청), 상세 시트 상단 태그·후원 요약. 감사 편지 리스트 탭 시 AdminThankYouDetailScreen push |

@@ -147,12 +147,20 @@ class AuthRepository {
   }
 
   /// Firestore에서 최신 유저 문서를 불러와 동기화. 회원정보 수정 화면 등에서 실시간 반영용.
+  /// 이미 admin인 경우 서버 응답에서 role이 누락/기본값이어도 admin 유지(강등 방지).
   Future<UserModel?> fetchUserFromFirestore(String userId) async {
     try {
       final doc = await _firestore.collection(FirestoreCollections.users).doc(userId).get();
       final data = doc.data();
       if (doc.exists && data != null) {
         final user = UserModel.fromJson(data);
+        final wasAdmin = _currentUser?.type == UserType.admin;
+        final isNowAdmin = user.type == UserType.admin;
+        if (wasAdmin && !isNowAdmin) {
+          final preserved = user.copyWith(type: UserType.admin);
+          await setCurrentUser(preserved);
+          return preserved;
+        }
         await setCurrentUser(user);
         return user;
       }

@@ -108,7 +108,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
               child: const Text('메인으로', style: TextStyle(color: _AdminTheme.light)),
             ),
@@ -270,6 +270,16 @@ class _StruggleTab extends StatefulWidget {
 class _StruggleTabState extends State<_StruggleTab> with AutomaticKeepAliveClientMixin {
   /// '전체' | '일반' | '후원'
   String _filter = '전체';
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _pendingListStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingListStream = FirebaseFirestore.instance
+        .collection(FirestoreCollections.posts)
+        .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.pending)
+        .snapshots();
+  }
 
   @override
   bool get wantKeepAlive => true;
@@ -337,6 +347,7 @@ class _StruggleTabState extends State<_StruggleTab> with AutomaticKeepAliveClien
           ),
           const SizedBox(height: 12),
           _PendingPostsList(
+            stream: _pendingListStream,
             onTapPost: widget.onTapPost,
             onDeletePost: widget.onDeletePost,
             isAdmin: true,
@@ -595,8 +606,27 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
   }
 }
 
-/// 상단 통계 카드: 총 사연 수, 승인 대기 수
-class _StatsSection extends StatelessWidget {
+/// 상단 통계 카드: 총 사연 수, 승인 대기 수. 스트림은 1회만 생성해 중복 구독 방지.
+class _StatsSection extends StatefulWidget {
+  @override
+  State<_StatsSection> createState() => _StatsSectionState();
+}
+
+class _StatsSectionState extends State<_StatsSection> {
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _totalPostsStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _pendingPostsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final firestore = FirebaseFirestore.instance;
+    _totalPostsStream = firestore.collection(FirestoreCollections.posts).snapshots();
+    _pendingPostsStream = firestore
+        .collection(FirestoreCollections.posts)
+        .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.pending)
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -604,10 +634,8 @@ class _StatsSection extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection(FirestoreCollections.posts)
-                  .snapshots(),
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _totalPostsStream,
               builder: (context, snap) {
                 final total = snap.data?.docs.length ?? 0;
                 return _StatCard(
@@ -620,11 +648,8 @@ class _StatsSection extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection(FirestoreCollections.posts)
-                  .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.pending)
-                  .snapshots(),
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _pendingPostsStream,
               builder: (context, snap) {
                 final pending = snap.data?.docs.length ?? 0;
                 return _StatCard(
@@ -688,15 +713,17 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// 승인 대기 리스트 — 필터(전체/일반/후원) 적용, 카드(썸네일/제목/배지/작성자/신청일), 관리자일 때 삭제 아이콘
+/// 승인 대기 리스트 — 스트림은 상위에서 1회 전달받아 중복 구독 방지
 class _PendingPostsList extends StatelessWidget {
   const _PendingPostsList({
+    required this.stream,
     required this.onTapPost,
     this.onDeletePost,
     this.isAdmin = false,
     this.filter = '전체',
   });
 
+  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
   final void Function(String docId, Map<String, dynamic> data) onTapPost;
   final Future<void> Function(String docId)? onDeletePost;
   final bool isAdmin;
@@ -705,12 +732,7 @@ class _PendingPostsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
-        .collection(FirestoreCollections.posts)
-        .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.pending)
-        .snapshots();
-
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: stream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
