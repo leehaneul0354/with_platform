@@ -9,6 +9,7 @@ import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../shared/widgets/safe_image_asset.dart';
 import '../../../features/post/post_detail_screen.dart';
 
 /// 내가 후원하는 천사들 섹션
@@ -238,11 +239,11 @@ class _MyAngelsSectionState extends State<MyAngelsSection> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset(
-            WithMascots.withMascot,
+          SafeImageAsset(
+            assetPath: WithMascots.withMascot,
             width: 48,
             height: 48,
-            errorBuilder: (_, __, ___) => Icon(
+            fallback: Icon(
               Icons.favorite_border,
               size: 32,
               color: AppColors.textSecondary.withValues(alpha: 0.5),

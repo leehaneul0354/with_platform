@@ -88,6 +88,8 @@ class ThankYouPostKeys {
   static const String patientId = 'patientId';
   static const String patientName = 'patientName';
   static const String postId = 'postId';
+  /// 연결된 게시물(투병 기록) ID — 관련 투병기록 조회용
+  static const String relatedPostId = 'relatedPostId';
   /// 연결된 게시물(투병 기록) 제목 — 관리자 리스트에서 문맥 표시용
   static const String postTitle = 'postTitle';
   static const String createdAt = 'createdAt';

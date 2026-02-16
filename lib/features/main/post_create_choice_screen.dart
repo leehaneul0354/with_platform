@@ -7,6 +7,7 @@ import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
 import '../../shared/widgets/my_angels_section.dart';
+import '../../shared/widgets/safe_image_asset.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../post/post_upload_screen.dart';
 import 'patient_my_content_screen.dart';
@@ -70,11 +71,11 @@ class _PostCreateChoiceScreenState extends State<PostCreateChoiceScreen> {
                 ),
                 child: Row(
                   children: [
-                    Image.asset(
-                      WithMascots.withMascot,
+                    SafeImageAsset(
+                      assetPath: WithMascots.withMascot,
                       width: 32,
                       height: 32,
-                      errorBuilder: (_, __, ___) => Icon(
+                      fallback: Icon(
                         Icons.favorite,
                         color: AppColors.coral,
                         size: 24,

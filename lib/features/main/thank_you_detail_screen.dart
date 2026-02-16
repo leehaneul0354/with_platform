@@ -2,6 +2,7 @@
 // 흐름: TodayThankYouGrid 카드 탭 → 본 화면(풀스크린 또는 모달). 관리자일 경우 하단 삭제 버튼 노출.
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
@@ -11,6 +12,7 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/comment_section.dart';
+import '../post/post_detail_screen.dart';
 
 class ThankYouDetailScreen extends StatefulWidget {
   const ThankYouDetailScreen({
@@ -227,6 +229,9 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // 관련 투병기록 섹션
+            _buildRelatedPostSection(data),
+            const SizedBox(height: 16),
             // 댓글 섹션
             if ((widget.todayDocId ?? postId) != null)
               CommentSection(
@@ -385,5 +390,164 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
         );
       }
     }
+  }
+
+  /// 관련 투병기록 섹션 빌드
+  Widget _buildRelatedPostSection(Map<String, dynamic> data) {
+    // relatedPostId 또는 postId 필드 확인 (호환성)
+    final relatedPostId = data[ThankYouPostKeys.relatedPostId]?.toString() ??
+        data[ThankYouPostKeys.postId]?.toString();
+    
+    if (relatedPostId == null || relatedPostId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection(FirestoreCollections.posts)
+          .doc(relatedPostId)
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink(); // 로딩 중에는 표시하지 않음
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink(); // 데이터가 없으면 표시하지 않음
+        }
+
+        final postData = snapshot.data!.data() as Map<String, dynamic>?;
+        if (postData == null) {
+          return const SizedBox.shrink();
+        }
+
+        final postTitle = postData[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
+        final postContent = postData[FirestorePostKeys.content]?.toString() ?? '';
+        final createdAt = postData[FirestorePostKeys.createdAt];
+        String dateStr = '';
+        if (createdAt != null) {
+          if (createdAt is Timestamp) {
+            final date = createdAt.toDate();
+            dateStr = '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+          }
+        }
+        final shortContent = postContent.length > 80 
+            ? '${postContent.substring(0, 80)}...' 
+            : postContent;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '후원님의 따뜻한 마음이 이 기록을 만들었습니다',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary.withValues(alpha: 0.7),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PostDetailScreen(
+                        postId: relatedPostId,
+                        data: postData,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.article_outlined,
+                                  size: 16,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '투병기록',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                if (dateStr.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    dateStr,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              postTitle,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (shortContent.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                shortContent,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

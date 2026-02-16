@@ -11,6 +11,7 @@ import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
 import '../../core/services/admin_service.dart' show showDeletePostConfirmDialog, deletePost;
 import '../../features/post/post_detail_screen.dart';
+import 'safe_image_asset.dart';
 import 'shimmer_image.dart';
 
 class StoryFeedCard extends StatelessWidget {
@@ -311,10 +312,10 @@ class StoryFeedCard extends StatelessWidget {
         color: AppColors.inactiveBackground,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
       ),
-      child: Image.asset(
-        WithMascots.defaultPlaceholder,
+      child: SafeImageAsset(
+        assetPath: WithMascots.defaultPlaceholder,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Center(
+        fallback: const Center(
           child: Icon(Icons.image_outlined, size: 48, color: AppColors.textSecondary),
         ),
       ),

@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
+import 'safe_image_asset.dart';
 
 /// Shimmer 효과가 있는 네트워크 이미지 위젯
 class ShimmerImage extends StatefulWidget {
@@ -52,12 +53,12 @@ class _ShimmerImageState extends State<ShimmerImage> with SingleTickerProviderSt
 
     if (_hasError) {
       // 에러 시 플레이스홀더 이미지
-      imageWidget = Image.asset(
-        WithMascots.defaultPlaceholder,
+      imageWidget = SafeImageAsset(
+        assetPath: WithMascots.defaultPlaceholder,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        errorBuilder: (_, __, ___) => Container(
+        fallback: Container(
           width: widget.width,
           height: widget.height,
           color: AppColors.inactiveBackground,
@@ -142,12 +143,12 @@ class _ShimmerImageState extends State<ShimmerImage> with SingleTickerProviderSt
               _hasError = true;
             });
           }
-          return Image.asset(
-            WithMascots.defaultPlaceholder,
+          return SafeImageAsset(
+            assetPath: WithMascots.defaultPlaceholder,
             width: widget.width,
             height: widget.height,
             fit: widget.fit,
-            errorBuilder: (_, __, ___) => Container(
+            fallback: Container(
               width: widget.width,
               height: widget.height,
               color: AppColors.inactiveBackground,

@@ -14,6 +14,7 @@ import '../../core/services/donation_service.dart';
 import '../../core/services/with_pay_service.dart';
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/comment_section.dart';
+import '../../shared/widgets/safe_image_asset.dart';
 import '../main/with_pay_recharge_dialog.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -245,10 +246,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                     color: AppColors.inactiveBackground,
                                     borderRadius: BorderRadius.circular(16),
                                   ),
-                                  child: Image.asset(
-                                    WithMascots.defaultPlaceholder,
+                                  child: SafeImageAsset(
+                                    assetPath: WithMascots.defaultPlaceholder,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => const Center(
+                                    fallback: const Center(
                                       child: Icon(Icons.broken_image, size: 48, color: AppColors.textSecondary),
                                     ),
                                   ),

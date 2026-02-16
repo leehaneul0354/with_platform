@@ -8,6 +8,7 @@ import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
+import '../../shared/widgets/safe_image_asset.dart';
 import '../main/thank_you_detail_screen.dart';
 import '../post/post_detail_screen.dart';
 
@@ -151,11 +152,11 @@ class _PatientPostsTab extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    WithMascots.withMascot,
+                  SafeImageAsset(
+                    assetPath: WithMascots.withMascot,
                     width: 64,
                     height: 64,
-                    errorBuilder: (_, __, ___) => Icon(
+                    fallback: Icon(
                       Icons.article_outlined,
                       size: 64,
                       color: AppColors.textSecondary.withValues(alpha: 0.5),
@@ -266,11 +267,11 @@ class _PatientThankYouTab extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    WithMascots.withMascot,
+                  SafeImageAsset(
+                    assetPath: WithMascots.withMascot,
                     width: 64,
                     height: 64,
-                    errorBuilder: (_, __, ___) => Icon(
+                    fallback: Icon(
                       Icons.mail_outline,
                       size: 64,
                       color: AppColors.textSecondary.withValues(alpha: 0.5),
