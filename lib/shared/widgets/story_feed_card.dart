@@ -1,9 +1,12 @@
 // 목적: 승인된 사연 피드 카드. 환자명·지원 필요 배지, 16:9 이미지, 제목·요약, 진행바 뼈대.
 // 흐름: ApprovedPostsFeed에서 사용, 탭 시 PostDetailScreen 이동.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../core/services/comment_service.dart';
+import '../../core/services/like_service.dart';
 import '../../features/post/post_detail_screen.dart';
 
 class StoryFeedCard extends StatelessWidget {
@@ -147,6 +150,69 @@ class StoryFeedCard extends StatelessWidget {
                   ],
                   const SizedBox(height: 12),
                   _buildProgressOrGoods(data),
+                  const SizedBox(height: 12),
+                  // 좋아요/댓글 개수
+                  Row(
+                    children: [
+                      StreamBuilder<int>(
+                        stream: likeCountStream(
+                          postId: postId,
+                          postType: 'post',
+                        ),
+                        builder: (context, snapshot) {
+                          final likeCount = snapshot.data ?? 0;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.favorite,
+                                size: 16,
+                                color: Colors.red.shade400,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$likeCount',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: commentsStream(
+                          postId: postId,
+                          postType: 'post',
+                        ),
+                        builder: (context, snapshot) {
+                          final commentCount = snapshot.data?.docs.length ?? 0;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 16,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$commentCount',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

@@ -9,6 +9,8 @@ import '../../core/constants/admin_account.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
+import '../../core/services/like_service.dart';
+import '../../shared/widgets/comment_section.dart';
 
 class ThankYouDetailScreen extends StatefulWidget {
   const ThankYouDetailScreen({
@@ -150,6 +152,73 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
                 ),
               ),
             ),
+            // 좋아요 버튼
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: StreamBuilder<bool>(
+                stream: isLikedStream(
+                  postId: widget.todayDocId ?? postId ?? '',
+                  postType: 'thank_you',
+                  userId: AuthRepository.instance.currentUser?.id ?? '',
+                ),
+                builder: (context, likedSnapshot) {
+                  final isLiked = likedSnapshot.data ?? false;
+                  return StreamBuilder<int>(
+                    stream: likeCountStream(
+                      postId: widget.todayDocId ?? postId ?? '',
+                      postType: 'thank_you',
+                    ),
+                    builder: (context, countSnapshot) {
+                      final likeCount = countSnapshot.data ?? 0;
+                      return Row(
+                        children: [
+                          IconButton(
+                            onPressed: () async {
+                              final user = AuthRepository.instance.currentUser;
+                              if (user == null) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('로그인 후 좋아요를 누를 수 있습니다.')),
+                                );
+                                return;
+                              }
+                              final targetPostId = widget.todayDocId ?? postId ?? '';
+                              if (targetPostId.isEmpty) return;
+                              await toggleLike(
+                                postId: targetPostId,
+                                postType: 'thank_you',
+                                userId: user.id,
+                              );
+                            },
+                            icon: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? Colors.red : AppColors.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            '$likeCount',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            // 댓글 섹션
+            if ((widget.todayDocId ?? postId) != null)
+              CommentSection(
+                postId: widget.todayDocId ?? postId!,
+                postType: 'thank_you',
+                patientId: data[ThankYouPostKeys.patientId]?.toString() ?? '',
+              ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

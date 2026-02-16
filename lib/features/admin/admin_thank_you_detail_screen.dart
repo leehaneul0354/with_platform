@@ -8,6 +8,8 @@ import '../../core/auth/user_model.dart';
 import '../../core/constants/admin_account.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
+import '../../core/services/like_service.dart';
+import '../../shared/widgets/comment_section.dart';
 
 /// 관리자 전용 컬러 (AdminDashboard와 동일)
 class _AdminTheme {
@@ -255,6 +257,61 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
                     ),
                   )),
             ],
+            const SizedBox(height: 24),
+            // 좋아요 버튼
+            StreamBuilder<bool>(
+              stream: isLikedStream(
+                postId: widget.docId,
+                postType: 'thank_you',
+                userId: AuthRepository.instance.currentUser?.id ?? '',
+              ),
+              builder: (context, likedSnapshot) {
+                final isLiked = likedSnapshot.data ?? false;
+                return StreamBuilder<int>(
+                  stream: likeCountStream(
+                    postId: widget.docId,
+                    postType: 'thank_you',
+                  ),
+                  builder: (context, countSnapshot) {
+                    final likeCount = countSnapshot.data ?? 0;
+                    return Row(
+                      children: [
+                        IconButton(
+                          onPressed: () async {
+                            final user = AuthRepository.instance.currentUser;
+                            if (user == null) return;
+                            await toggleLike(
+                              postId: widget.docId,
+                              postType: 'thank_you',
+                              userId: user.id,
+                            );
+                          },
+                          icon: Icon(
+                            isLiked ? Icons.favorite : Icons.favorite_border,
+                            color: isLiked ? Colors.red : _AdminTheme.light,
+                          ),
+                        ),
+                        Text(
+                          '$likeCount',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _AdminTheme.light,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            // 댓글 섹션
+            CommentSection(
+              postId: widget.docId,
+              postType: 'thank_you',
+              patientId: widget.data[ThankYouPostKeys.patientId]?.toString() ?? '',
+            ),
             const SizedBox(height: 24),
           ],
         ),

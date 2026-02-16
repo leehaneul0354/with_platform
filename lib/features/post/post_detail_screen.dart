@@ -1,6 +1,7 @@
 // 목적: 승인된 사연 상세. 후원하기 → 금액 선택 다이얼로그 → processPayment → 로딩 오버레이.
 // 흐름: 메인 피드 카드 탭 → 본 화면 → 관리자면 삭제 버튼 노출.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
@@ -10,6 +11,8 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/donation_service.dart';
 import '../../core/services/with_pay_service.dart';
+import '../../core/services/like_service.dart';
+import '../../shared/widgets/comment_section.dart';
 import '../main/with_pay_recharge_dialog.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -170,27 +173,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                url,
+                              child: CachedNetworkImage(
+                                imageUrl: url,
                                 fit: BoxFit.contain,
                                 width: double.infinity,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return AspectRatio(
-                                    aspectRatio: 16 / 9,
-                                    child: Container(
-                                      color: AppColors.inactiveBackground,
-                                      child: const Center(
-                                        child: SizedBox(
-                                          width: 32,
-                                          height: 32,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
-                                        ),
+                                placeholder: (_, __) => AspectRatio(
+                                  aspectRatio: 16 / 9,
+                                  child: Container(
+                                    color: AppColors.inactiveBackground,
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 32,
+                                        height: 32,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
                                       ),
                                     ),
-                                  );
-                                },
-                                errorBuilder: (_, __, ___) => Container(
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => Container(
                                   height: 200,
                                   color: AppColors.inactiveBackground,
                                   child: const Center(
@@ -261,6 +261,67 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 24),
+                            // 좋아요 버튼
+                            StreamBuilder<bool>(
+                              stream: isLikedStream(
+                                postId: widget.postId,
+                                postType: 'post',
+                                userId: AuthRepository.instance.currentUser?.id ?? '',
+                              ),
+                              builder: (context, likedSnapshot) {
+                                final isLiked = likedSnapshot.data ?? false;
+                                return StreamBuilder<int>(
+                                  stream: likeCountStream(
+                                    postId: widget.postId,
+                                    postType: 'post',
+                                  ),
+                                  builder: (context, countSnapshot) {
+                                    final likeCount = countSnapshot.data ?? 0;
+                                    return Row(
+                                      children: [
+                                        IconButton(
+                                          onPressed: () async {
+                                            final user = AuthRepository.instance.currentUser;
+                                            if (user == null) {
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('로그인 후 좋아요를 누를 수 있습니다.')),
+                                              );
+                                              return;
+                                            }
+                                            await toggleLike(
+                                              postId: widget.postId,
+                                              postType: 'post',
+                                              userId: user.id,
+                                            );
+                                          },
+                                          icon: Icon(
+                                            isLiked ? Icons.favorite : Icons.favorite_border,
+                                            color: isLiked ? Colors.red : AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        Text(
+                                          '$likeCount',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            // 댓글 섹션
+                            CommentSection(
+                              postId: widget.postId,
+                              postType: 'post',
+                              patientId: widget.data[FirestorePostKeys.patientId]?.toString() ?? '',
+                            ),
                             const SizedBox(height: 32),
                           ],
                         ),

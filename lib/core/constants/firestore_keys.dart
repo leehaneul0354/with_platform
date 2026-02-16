@@ -11,6 +11,8 @@ class FirestoreCollections {
   static const String recharges = 'recharges';
   static const String thankYouPosts = 'thank_you_posts';
   static const String todayThankYou = 'today_thank_you';
+  static const String comments = 'comments';
+  static const String likes = 'likes';
 }
 
 /// recharges 문서 필드 (충전 내역)
@@ -120,4 +122,27 @@ class FirestoreUserKeys {
   /// 레거시/콘솔용 별칭 (읽기 시에만 사용)
   static const String name = 'name';
   static const String birthdate = 'birthdate';
+}
+
+/// comments 문서 필드 (댓글)
+class CommentKeys {
+  CommentKeys._();
+
+  static const String content = 'content';
+  static const String userId = 'userId';
+  static const String userName = 'userName';
+  static const String timestamp = 'timestamp';
+  static const String isSponsor = 'isSponsor';
+  static const String postId = 'postId';
+  static const String postType = 'postType'; // 'post' 또는 'thank_you'
+}
+
+/// likes 문서 필드 (좋아요)
+class LikeKeys {
+  LikeKeys._();
+
+  static const String userId = 'userId';
+  static const String postId = 'postId';
+  static const String postType = 'postType'; // 'post' 또는 'thank_you'
+  static const String timestamp = 'timestamp';
 }

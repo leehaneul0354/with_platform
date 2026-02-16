@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../core/services/comment_service.dart';
+import '../../core/services/like_service.dart';
 import '../../features/main/thank_you_detail_screen.dart';
 
 class TodayThankYouGrid extends StatelessWidget {
@@ -81,6 +83,7 @@ class TodayThankYouGrid extends StatelessWidget {
               final data = doc.data() as Map<String, dynamic>? ?? {};
               return _ThankYouGridCard(
                 data: data,
+                postId: doc.id, // today_thank_you 문서 ID (댓글/좋아요용)
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -103,10 +106,12 @@ class TodayThankYouGrid extends StatelessWidget {
 class _ThankYouGridCard extends StatelessWidget {
   const _ThankYouGridCard({
     required this.data,
+    required this.postId,
     required this.onTap,
   });
 
   final Map<String, dynamic> data;
+  final String postId;
   final VoidCallback onTap;
 
   @override
@@ -178,6 +183,70 @@ class _ThankYouGridCard extends StatelessWidget {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    // 좋아요/댓글 개수
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        StreamBuilder<int>(
+                          stream: likeCountStream(
+                            postId: postId,
+                            postType: 'thank_you',
+                          ),
+                          builder: (context, snapshot) {
+                            final likeCount = snapshot.data ?? 0;
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.favorite,
+                                  size: 12,
+                                  color: Colors.red.shade400,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$likeCount',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: commentsStream(
+                            postId: postId,
+                            postType: 'thank_you',
+                          ),
+                          builder: (context, snapshot) {
+                            final commentCount = snapshot.data?.docs.length ?? 0;
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$commentCount',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
