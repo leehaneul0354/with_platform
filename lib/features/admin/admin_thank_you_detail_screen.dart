@@ -9,6 +9,7 @@ import '../../core/constants/admin_account.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/like_service.dart';
+import '../../shared/widgets/brand_placeholder.dart';
 import '../../shared/widgets/comment_section.dart';
 
 /// 관리자 전용 컬러 (AdminDashboard와 동일)
@@ -246,11 +247,15 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
                             ),
                           ),
                         ),
-                        errorWidget: (_, __, ___) => Container(
-                          height: 120,
-                          color: _AdminTheme.slate,
-                          child: const Center(
-                            child: Icon(Icons.broken_image, color: _AdminTheme.light),
+                        errorWidget: (_, __, ___) => ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            height: 120,
+                            width: double.infinity,
+                            child: BrandPlaceholder.forThankYou(
+                              height: 120,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),

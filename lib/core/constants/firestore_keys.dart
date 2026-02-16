@@ -73,6 +73,14 @@ class FirestorePostKeys {
   static const String neededItems = 'neededItems';
   /// 후원 사용 목적 (선택, 예: 치료비, 간병비, 보조기구 구입)
   static const String usagePurpose = 'usagePurpose';
+  /// 후원 요청 여부 (true: 후원 요청 게시물, false: 일반 기록)
+  static const String isDonationRequest = 'isDonationRequest';
+  /// 병원명 (후원 요청·후원금 유형 시 선택)
+  static const String hospitalName = 'hospitalName';
+  /// 배송 정보 (후원물품 유형 시)
+  static const String deliveryInfo = 'deliveryInfo';
+  /// 물품 수량 (후원물품 유형 시, 문자열 또는 숫자)
+  static const String goodsQuantity = 'goodsQuantity';
   /// 게시물 유형: 'struggle'(투병 기록) | 'thanks'(감사 편지)
   static const String type = 'type';
   static const String typeStruggle = 'struggle';

@@ -7,14 +7,13 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/donation_service.dart';
 import '../../core/services/with_pay_service.dart';
 import '../../core/services/like_service.dart';
+import '../../shared/widgets/brand_placeholder.dart';
 import '../../shared/widgets/comment_section.dart';
-import '../../shared/widgets/safe_image_asset.dart';
 import '../main/with_pay_recharge_dialog.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -173,6 +172,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final imageUrls = widget.data[FirestorePostKeys.imageUrls] is List
         ? (widget.data[FirestorePostKeys.imageUrls] as List).cast<String>()
         : <String>[];
+    final isDonationRequest = widget.data[FirestorePostKeys.isDonationRequest] == true ||
+        (widget.data[FirestorePostKeys.goalAmount] != null && (widget.data[FirestorePostKeys.goalAmount] as num) > 0) ||
+        ((widget.data[FirestorePostKeys.neededItems]?.toString() ?? '').trim().isNotEmpty);
 
     return Stack(
       children: [
@@ -219,38 +221,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 width: double.infinity,
                                 placeholder: (_, __) => AspectRatio(
                                   aspectRatio: 16 / 9,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          AppColors.inactiveBackground,
-                                          AppColors.inactiveBackground.withValues(alpha: 0.5),
-                                          AppColors.inactiveBackground,
-                                        ],
-                                      ),
-                                    ),
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 32,
-                                        height: 32,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
-                                    ),
+                                  child: BrandPlaceholder.forContent(
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
                                 errorWidget: (_, __, ___) => Container(
                                   height: 200,
                                   decoration: BoxDecoration(
-                                    color: AppColors.inactiveBackground,
                                     borderRadius: BorderRadius.circular(16),
                                   ),
-                                  child: SafeImageAsset(
-                                    assetPath: WithMascots.defaultPlaceholder,
-                                    fit: BoxFit.contain,
-                                    fallback: const Center(
-                                      child: Icon(Icons.broken_image, size: 48, color: AppColors.textSecondary),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: BrandPlaceholder.forContent(
+                                      height: 200,
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
                                   ),
                                 ),
@@ -289,7 +273,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 height: 1.6,
                               ),
                             ),
-                            if (usagePurpose.isNotEmpty) ...[
+                            if (isDonationRequest && usagePurpose.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -355,7 +339,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                           },
                                           icon: Icon(
                                             isLiked ? Icons.favorite : Icons.favorite_border,
-                                            color: isLiked ? Colors.red : AppColors.textSecondary,
+                                            color: isLiked ? AppColors.coral : AppColors.textSecondary,
                                           ),
                                         ),
                                         Text(
@@ -394,21 +378,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        height: 52,
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _isPaymentLoading ? null : _onDonateTap,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.coral,
-                            foregroundColor: AppColors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                      if (isDonationRequest)
+                        SizedBox(
+                          height: 52,
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _isPaymentLoading ? null : _onDonateTap,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.coral,
+                              foregroundColor: AppColors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
+                            child: const Text('후원하기', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                           ),
-                          child: const Text('후원하기', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                         ),
-                      ),
                       if (isAdmin) ...[
                         const SizedBox(height: 10),
                         SizedBox(

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import 'brand_placeholder.dart';
 
 /// 피드 한 건 카드 (이미지 URL은 추후 연동)
 class FeedCard extends StatelessWidget {
@@ -57,15 +58,9 @@ class FeedCard extends StatelessWidget {
           ),
           AspectRatio(
             aspectRatio: 16 / 10,
-            child: Container(
-              width: double.infinity,
-              color: AppColors.inactiveBackground,
-              child: imageUrl != null && imageUrl!.isNotEmpty
-                  ? Image.network(imageUrl!, fit: BoxFit.cover)
-                  : const Center(
-                      child: Icon(Icons.image_outlined, size: 48, color: AppColors.textSecondary),
-                    ),
-            ),
+            child: imageUrl != null && imageUrl!.isNotEmpty
+                ? Image.network(imageUrl!, fit: BoxFit.cover)
+                : const BrandPlaceholder(fit: BoxFit.cover),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

@@ -24,6 +24,8 @@
   - **투데이 탭:** '한줄 후기 감사편지' 영역이 Firestore `today_thank_you` 컬렉션 실시간 스트림으로 표시(승인된 감사 편지).
   - **메인:** 모바일 우측 하단 FAB 제거. 하단 네비 [+] → `PostCreateChoiceScreen`. 마이페이지 관리자 전용 '관리자 대시보드' → `AdminDashboardScreen` 진입 시 admin 권한 체크 후 비관리자 즉시 퇴장.
   - **WITH Pay:** Firestore `users` 문서에 `withPayBalance`(int, 기본 0). `WithPayService`: `rechargeWithPay(userId, amount, paymentMethod)`(Transaction·increment + `recharges` 컬렉션 내역 저장), `getWithPayBalance`, `withPayBalanceStream`, `balanceFromSnapshot`. 충전 UX: 금액 선택 → [충전하기] → 결제 수단 선택 BottomSheet(신용카드/카카오페이/네이버페이/토스) → `PaymentService.startPay()`(추후 Portone 등 PG 교체용) → 가상 결제 모달(PaymentWebViewMock: 2.5초 로딩 → "지문/비밀번호 입력" + [확인]) → 충전 처리 → RechargeSuccessScreen(초록 체크 + "충전이 완료되었습니다!" + 잔액 + [확인]) → 마이페이지 복귀 시 StreamBuilder로 잔액 최신화. Firestore `recharges`: userId, amount, paymentMethod, createdAt.
+  - **게시글 상세 후원 UI 조건부:** `PostDetailScreen`에서 `isDonationRequest == false`(일반 기록)일 때 하단 '후원하기' 버튼 및 사용 목적(usagePurpose) 블록을 숨김. 후원 요청 게시물에서만 후원 관련 UI 노출.
+  - **피드/투데이 하트(좋아요) 아이콘:** `StoryFeedCard`, `TodayThankYouGrid`, `PatientPostsListScreen`, `PatientMyContentScreen`에서 `isLikedStream` 기반으로 미좋아요 시 `Icons.favorite_border`, 좋아요 시 `Icons.favorite` + `AppColors.coral`. 상세 화면(PostDetailScreen, ThankYouDetailScreen) 좋아요 아이콘도 동일 브랜드 컬러 적용. 피드 카드에서 하트 탭 시 `toggleLike` 호출로 즉시 반영.
 
 ---
 
@@ -70,6 +72,10 @@
 | `lib/features/main/thank_you_post_list_screen.dart` | 현재 유저의 승인된 투병 기록 목록, 선택 시 ThankYouLetterUploadScreen |
 | `lib/features/main/thank_you_letter_upload_screen.dart` | 감사 편지 폼(제목·내용·사진 0~3장) → thank_you_posts 저장 |
 | `lib/features/post/post_upload_screen.dart` | 투병 기록: 제목/내용(20자 이상)/사진(0~3장), type struggle, "검토 후 업로드됩니다." |
+| `lib/features/post/post_detail_screen.dart` | 승인된 사연 상세. isDonationRequest일 때만 후원하기 버튼·usagePurpose 블록 노출. 좋아요 아이콘 coral. |
+| `lib/shared/widgets/story_feed_card.dart` | 피드 카드. isLikedStream 기반 빈하트/채운하트(coral), 하트 탭 시 toggleLike. |
+| `lib/shared/widgets/today_thank_you_grid.dart` | 투데이 감사편지 그리드. isLikedStream 기반 하트 아이콘·탭 토글. |
+| `lib/features/main/thank_you_detail_screen.dart` | 감사편지 상세. 좋아요 아이콘 AppColors.coral 적용. |
 | `lib/features/admin/admin_dashboard_screen.dart` | 탭 [투병 기록 승인][감사 편지 승인], 감사 편지 리스트 탭 시 AdminThankYouDetailScreen push |
 | `lib/features/admin/admin_thank_you_detail_screen.dart` | 관리자 전용 감사 편지 상세 풀스크린. 진입 시 admin 재확인, 하단 [삭제][승인], 이미지/환자명/내용/사용목적 레이아웃 |
 | `lib/core/services/admin_service.dart` | deleteDocument(컬렉션 경로·docId), deletePost/deleteThankYouPost 래퍼, showDeleteConfirmDialog, approveThankYouPost |

@@ -45,8 +45,8 @@ class WithMascots {
   /// WITH 메인 마스코트 (브랜드 자산) - 기본 마스코트
   static const String withMascot = 'assets/images/mascot_yellow.png';
 
-  /// 기본 플레이스홀더 이미지 (에러 시 사용)
-  static const String defaultPlaceholder = 'assets/images/default_placeholder.png';
+  /// 기본 플레이스홀더 이미지 (에러 시 사용). 실제 존재하는 마스코트 사용 (assets/images/ 경로)
+  static const String defaultPlaceholder = 'assets/images/mascot_yellow.png';
 }
 
 /// 사용자 프로필 마스코트 선택 목록

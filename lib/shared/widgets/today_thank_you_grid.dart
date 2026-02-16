@@ -4,11 +4,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
 import '../../features/main/thank_you_detail_screen.dart';
+import 'brand_placeholder.dart';
 
 class TodayThankYouGrid extends StatelessWidget {
   const TodayThankYouGrid({
@@ -185,35 +187,60 @@ class _ThankYouGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-                    // 좋아요/댓글 개수
+                    // 좋아요/댓글 개수 — isLiked 기준 빈하트/채운하트, 브랜드 컬러
                     Row(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        StreamBuilder<int>(
-                          stream: likeCountStream(
+                        StreamBuilder<bool>(
+                          stream: isLikedStream(
                             postId: postId,
                             postType: 'thank_you',
+                            userId: AuthRepository.instance.currentUser?.id ?? '',
                           ),
-                          builder: (context, snapshot) {
-                            final likeCount = snapshot.data ?? 0;
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.favorite,
-                                  size: 12,
-                                  color: Colors.red.shade400,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$likeCount',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
+                          builder: (context, likedSnapshot) {
+                            final isLiked = likedSnapshot.data ?? false;
+                            return StreamBuilder<int>(
+                              stream: likeCountStream(
+                                postId: postId,
+                                postType: 'thank_you',
+                              ),
+                              builder: (context, countSnapshot) {
+                                final likeCount = countSnapshot.data ?? 0;
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final uid = AuthRepository.instance.currentUser?.id;
+                                        if (uid == null) return;
+                                        await toggleLike(
+                                          postId: postId,
+                                          postType: 'thank_you',
+                                          userId: uid,
+                                        );
+                                      },
+                                      behavior: HitTestBehavior.opaque,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                                        child: Icon(
+                                          isLiked ? Icons.favorite : Icons.favorite_border,
+                                          size: 12,
+                                          color: isLiked ? AppColors.coral : AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$likeCount',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
                           },
                         ),
@@ -259,21 +286,10 @@ class _ThankYouGridCard extends StatelessWidget {
   }
 
   static Widget _warmPlaceholder() {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.coral.withValues(alpha: 0.15),
-            AppColors.yellow.withValues(alpha: 0.25),
-          ],
-        ),
-      ),
-      child: const Center(
-        child: Icon(Icons.mail_outline, size: 40, color: AppColors.textSecondary),
+    return const SizedBox.expand(
+      child: BrandPlaceholder(
+        fit: BoxFit.cover,
+        variant: PlaceholderVariant.thankYou,
       ),
     );
   }

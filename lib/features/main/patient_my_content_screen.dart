@@ -381,24 +381,38 @@ class _PostItemCard extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  StreamBuilder<int>(
-                    stream: likeCountStream(postId: postId, postType: postType),
-                    builder: (context, snapshot) {
-                      final likeCount = snapshot.data ?? 0;
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.favorite, size: 16, color: Colors.red.shade400),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$likeCount',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                  StreamBuilder<bool>(
+                    stream: isLikedStream(
+                      postId: postId,
+                      postType: postType,
+                      userId: AuthRepository.instance.currentUser?.id ?? '',
+                    ),
+                    builder: (context, likedSnapshot) {
+                      final isLiked = likedSnapshot.data ?? false;
+                      return StreamBuilder<int>(
+                        stream: likeCountStream(postId: postId, postType: postType),
+                        builder: (context, snapshot) {
+                          final likeCount = snapshot.data ?? 0;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                size: 16,
+                                color: isLiked ? AppColors.coral : AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$likeCount',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),

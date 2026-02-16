@@ -5,13 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
 import '../../core/services/admin_service.dart' show showDeletePostConfirmDialog, deletePost;
 import '../../features/post/post_detail_screen.dart';
-import 'safe_image_asset.dart';
+import 'brand_placeholder.dart';
 import 'shimmer_image.dart';
 import 'user_profile_avatar.dart';
 
@@ -37,11 +36,19 @@ class StoryFeedCard extends StatelessWidget {
     final firstImageUrl = imageUrls is List && (imageUrls as List).isNotEmpty
         ? (imageUrls as List).first.toString()
         : null;
+    final isDonationRequest = data[FirestorePostKeys.isDonationRequest] == true ||
+        (data[FirestorePostKeys.goalAmount] != null && (data[FirestorePostKeys.goalAmount] as num) > 0) ||
+        ((data[FirestorePostKeys.neededItems]?.toString() ?? '').trim().isNotEmpty);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: isDonationRequest
+            ? BorderSide(color: AppColors.coral.withValues(alpha: 0.4), width: 1.5)
+            : BorderSide.none,
+      ),
       elevation: 2,
       child: InkWell(
         onTap: () {
@@ -76,22 +83,23 @@ class StoryFeedCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.coral.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.coral, width: 1),
-                    ),
-                    child: const Text(
-                      '지원 필요',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.coral,
+                  if (isDonationRequest)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.coral.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.coral, width: 1),
+                      ),
+                      child: const Text(
+                        '후원하기',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.coral,
+                        ),
                       ),
                     ),
-                  ),
                   if (isOwner) ...[
                     const SizedBox(width: 8),
                     GestureDetector(
@@ -117,8 +125,9 @@ class StoryFeedCard extends StatelessWidget {
                       imageUrl: firstImageUrl,
                       fit: BoxFit.cover,
                       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                      errorPlaceholderEmoji: isDonationRequest ? '🤝' : '📄',
                     )
-                  : _placeholderImage(),
+                  : _placeholderImage(isDonationRequest),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -146,7 +155,7 @@ class StoryFeedCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if ((data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim().isNotEmpty) ...[
+                  if (isDonationRequest && (data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim().isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
@@ -165,37 +174,64 @@ class StoryFeedCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  _buildProgressOrGoods(data),
-                  const SizedBox(height: 12),
-                  // 좋아요/댓글 개수
+                  if (isDonationRequest) ...[
+                    const SizedBox(height: 12),
+                    _buildProgressOrGoods(data),
+                    const SizedBox(height: 12),
+                  ],
+                  // 좋아요/댓글 개수 — isLiked 기준 빈하트/채운하트, 브랜드 컬러
                   Row(
                     children: [
-                      StreamBuilder<int>(
-                        stream: likeCountStream(
+                      StreamBuilder<bool>(
+                        stream: isLikedStream(
                           postId: postId,
                           postType: 'post',
+                          userId: AuthRepository.instance.currentUser?.id ?? '',
                         ),
-                        builder: (context, snapshot) {
-                          final likeCount = snapshot.data ?? 0;
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.favorite,
-                                size: 16,
-                                color: Colors.red.shade400,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$likeCount',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                        builder: (context, likedSnapshot) {
+                          final isLiked = likedSnapshot.data ?? false;
+                          return StreamBuilder<int>(
+                            stream: likeCountStream(
+                              postId: postId,
+                              postType: 'post',
+                            ),
+                            builder: (context, countSnapshot) {
+                              final likeCount = countSnapshot.data ?? 0;
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final uid = AuthRepository.instance.currentUser?.id;
+                                      if (uid == null) return;
+                                      await toggleLike(
+                                        postId: postId,
+                                        postType: 'post',
+                                        userId: uid,
+                                      );
+                                    },
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                                      child: Icon(
+                                        isLiked ? Icons.favorite : Icons.favorite_border,
+                                        size: 16,
+                                        color: isLiked ? AppColors.coral : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$likeCount',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         },
                       ),
@@ -312,20 +348,11 @@ class StoryFeedCard extends StatelessWidget {
     return 0;
   }
 
-  Widget _placeholderImage() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.inactiveBackground,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-      ),
-      child: SafeImageAsset(
-        assetPath: WithMascots.defaultPlaceholder,
-        fit: BoxFit.cover,
-        fallback: const Center(
-          child: Icon(Icons.image_outlined, size: 48, color: AppColors.textSecondary),
-        ),
-      ),
+  Widget _placeholderImage(bool isDonationRequest) {
+    return BrandPlaceholder(
+      fit: BoxFit.cover,
+      emoji: isDonationRequest ? '🤝' : '📄',
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
     );
   }
 

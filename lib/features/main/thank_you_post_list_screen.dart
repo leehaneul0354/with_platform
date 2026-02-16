@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../shared/widgets/brand_placeholder.dart';
 import 'thank_you_letter_upload_screen.dart';
 
 class ThankYouPostListScreen extends StatelessWidget {
@@ -299,14 +300,14 @@ class _PostCard extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    return Container(
-      width: 72,
-      height: 72,
-      decoration: BoxDecoration(
-        color: AppColors.inactiveBackground,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: BrandPlaceholder(
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Icon(Icons.article_outlined, size: 32, color: AppColors.textSecondary),
     );
   }
 

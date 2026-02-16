@@ -11,6 +11,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
 import '../../core/services/like_service.dart';
+import '../../shared/widgets/brand_placeholder.dart';
 import '../../shared/widgets/comment_section.dart';
 import '../../shared/widgets/user_profile_avatar.dart';
 import '../post/post_detail_screen.dart';
@@ -209,7 +210,7 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
                                 },
                                 icon: Icon(
                                   isLiked ? Icons.favorite : Icons.favorite_border,
-                                  color: isLiked ? Colors.red : AppColors.textSecondary,
+                                  color: isLiked ? AppColors.coral : AppColors.textSecondary,
                                 ),
                               ),
                               Text(
@@ -248,7 +249,6 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
       // 관리자 전용 삭제 버튼 (하단 고정)
       bottomNavigationBar: _isAdmin && _adminChecked && (widget.todayDocId != null || postId != null)
           ? Container(
-              color: Colors.white,
               padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -308,21 +308,15 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
   }
 
   static Widget _warmPlaceholder() {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.coral.withValues(alpha: 0.2),
-            AppColors.yellow.withValues(alpha: 0.3),
-          ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 200,
+        width: double.infinity,
+        child: BrandPlaceholder.forThankYou(
+          height: 200,
+          borderRadius: BorderRadius.circular(12),
         ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Center(
-        child: Icon(Icons.mail_outline, size: 48, color: AppColors.textSecondary),
       ),
     );
   }
