@@ -20,6 +20,8 @@ class _AdminTheme {
   static const Color light = Color(0xFFE0E1DD);
   static const Color accent = Color(0xFF4CAF50); // 연두/그린 액센트
   static const Color danger = Color(0xFFE53935);
+  static const Color coral = Color(0xFFFF7F7F); // 후원 요청 배지
+  static const Color generalBadge = Color(0xFF5C6BC0); // 일반 기록 배지 (푸른계열)
 }
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -250,7 +252,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 }
 
-/// 탭 1: 투병 기록 승인 — 통계 + 승인 대기 리스트(삭제 버튼 상시)
+/// 탭 1: 투병 기록 승인 — 통계 + 필터(전체/일반/후원) + 승인 대기 리스트(삭제 버튼 상시)
 /// 탭 전환 시 스트림이 꼬이지 않도록 KeepAlive로 유지
 class _StruggleTab extends StatefulWidget {
   const _StruggleTab({
@@ -266,6 +268,9 @@ class _StruggleTab extends StatefulWidget {
 }
 
 class _StruggleTabState extends State<_StruggleTab> with AutomaticKeepAliveClientMixin {
+  /// '전체' | '일반' | '후원'
+  String _filter = '전체';
+
   @override
   bool get wantKeepAlive => true;
 
@@ -290,11 +295,52 @@ class _StruggleTabState extends State<_StruggleTab> with AutomaticKeepAliveClien
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                ChoiceChip(
+                  label: const Text('전체'),
+                  selected: _filter == '전체',
+                  onSelected: (_) => setState(() => _filter = '전체'),
+                  selectedColor: _AdminTheme.accent.withValues(alpha: 0.4),
+                  labelStyle: TextStyle(
+                    color: _filter == '전체' ? _AdminTheme.light : _AdminTheme.slate,
+                    fontWeight: _filter == '전체' ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+                ChoiceChip(
+                  label: const Text('일반 기록'),
+                  selected: _filter == '일반',
+                  onSelected: (_) => setState(() => _filter = '일반'),
+                  selectedColor: _AdminTheme.generalBadge.withValues(alpha: 0.4),
+                  labelStyle: TextStyle(
+                    color: _filter == '일반' ? _AdminTheme.light : _AdminTheme.slate,
+                    fontWeight: _filter == '일반' ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+                ChoiceChip(
+                  label: const Text('후원 요청'),
+                  selected: _filter == '후원',
+                  onSelected: (_) => setState(() => _filter = '후원'),
+                  selectedColor: _AdminTheme.coral.withValues(alpha: 0.4),
+                  labelStyle: TextStyle(
+                    color: _filter == '후원' ? _AdminTheme.light : _AdminTheme.slate,
+                    fontWeight: _filter == '후원' ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           _PendingPostsList(
             onTapPost: widget.onTapPost,
             onDeletePost: widget.onDeletePost,
             isAdmin: true,
+            filter: _filter,
           ),
         ],
       ),
@@ -642,17 +688,20 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// 승인 대기 리스트 — 카드(썸네일/제목/작성자/신청일), 관리자일 때 삭제 아이콘
+/// 승인 대기 리스트 — 필터(전체/일반/후원) 적용, 카드(썸네일/제목/배지/작성자/신청일), 관리자일 때 삭제 아이콘
 class _PendingPostsList extends StatelessWidget {
   const _PendingPostsList({
     required this.onTapPost,
     this.onDeletePost,
     this.isAdmin = false,
+    this.filter = '전체',
   });
 
   final void Function(String docId, Map<String, dynamic> data) onTapPost;
   final Future<void> Function(String docId)? onDeletePost;
   final bool isAdmin;
+  /// '전체' | '일반' | '후원'
+  final String filter;
 
   @override
   Widget build(BuildContext context) {
@@ -681,11 +730,20 @@ class _PendingPostsList extends StatelessWidget {
           );
         }
         final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
+        final filtered = docs.where((d) {
+          final data = d.data() as Map<String, dynamic>? ?? {};
+          final isDonation = _isDonationRequestFromData(data);
+          if (filter == '전체') return true;
+          if (filter == '일반') return !isDonation;
+          return isDonation; // '후원'
+        }).toList();
+        if (filtered.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              '승인 대기 중인 사연이 없습니다.',
+              filter == '전체'
+                  ? '승인 대기 중인 사연이 없습니다.'
+                  : '${filter == '일반' ? '일반 기록' : '후원 요청'}으로 필터된 결과가 없습니다.',
               style: TextStyle(fontSize: 14, color: _AdminTheme.slate),
             ),
           );
@@ -694,10 +752,10 @@ class _PendingPostsList extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          itemCount: docs.length,
+          itemCount: filtered.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            final doc = docs[index];
+            final doc = filtered[index];
             final data = doc.data() as Map<String, dynamic>? ?? {};
             return _PostCard(
               docId: doc.id,
@@ -710,6 +768,41 @@ class _PendingPostsList extends StatelessWidget {
       },
     );
   }
+}
+
+/// data 기준 후원 요청 여부 (기존 문서 호환: goalAmount/neededItems로 판단)
+bool _isDonationRequestFromData(Map<String, dynamic> data) {
+  if (data[FirestorePostKeys.isDonationRequest] == true) return true;
+  final goal = data[FirestorePostKeys.goalAmount];
+  if (goal != null && (goal is num) && (goal as num) > 0) return true;
+  final needed = (data[FirestorePostKeys.neededItems]?.toString() ?? '').trim();
+  return needed.isNotEmpty;
+}
+
+Widget _summaryRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: _AdminTheme.slate, fontWeight: FontWeight.w500),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 12, color: _AdminTheme.light),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _PostCard extends StatelessWidget {
@@ -738,6 +831,7 @@ class _PostCard extends StatelessWidget {
       final dt = createdAt.toDate();
       dateStr = '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
     }
+    final isDonationRequest = _isDonationRequestFromData(data);
 
     return Material(
       color: _AdminTheme.navy,
@@ -760,12 +854,12 @@ class _PostCard extends StatelessWidget {
                           firstUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                            color: _AdminTheme.slate,
+                            decoration: const BoxDecoration(color: _AdminTheme.slate),
                             child: const Icon(Icons.image_not_supported, color: _AdminTheme.light),
                           ),
                         )
                       : Container(
-                          color: _AdminTheme.slate,
+                          decoration: const BoxDecoration(color: _AdminTheme.slate),
                           child: const Icon(Icons.image, color: _AdminTheme.light),
                         ),
                 ),
@@ -775,15 +869,44 @@ class _PostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: _AdminTheme.light,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: _AdminTheme.light,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isDonationRequest
+                                ? _AdminTheme.coral.withValues(alpha: 0.25)
+                                : _AdminTheme.generalBadge.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isDonationRequest ? _AdminTheme.coral : _AdminTheme.generalBadge,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            isDonationRequest ? '후원 요청' : '일반 기록',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDonationRequest ? _AdminTheme.coral : _AdminTheme.generalBadge,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -876,6 +999,13 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
     final imageUrls = widget.data[FirestorePostKeys.imageUrls] is List
         ? (widget.data[FirestorePostKeys.imageUrls] as List).cast<String>()
         : <String>[];
+    final isDonationRequest = _isDonationRequestFromData(widget.data);
+    final goalAmount = widget.data[FirestorePostKeys.goalAmount];
+    final neededItems = (widget.data[FirestorePostKeys.neededItems]?.toString() ?? '').trim();
+    final usagePurpose = (widget.data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim();
+    final hospitalName = (widget.data[FirestorePostKeys.hospitalName]?.toString() ?? '').trim();
+    final deliveryInfo = (widget.data[FirestorePostKeys.deliveryInfo]?.toString() ?? '').trim();
+    final goodsQuantity = (widget.data[FirestorePostKeys.goodsQuantity]?.toString() ?? '').trim();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -899,15 +1029,42 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _AdminTheme.light,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isDonationRequest
+                                ? _AdminTheme.coral.withValues(alpha: 0.25)
+                                : _AdminTheme.generalBadge.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isDonationRequest ? _AdminTheme.coral : _AdminTheme.generalBadge,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            isDonationRequest ? '후원 요청' : '일반 기록',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDonationRequest ? _AdminTheme.coral : _AdminTheme.generalBadge,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _AdminTheme.light,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -928,6 +1085,39 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                       '작성자: $patientName',
                       style: const TextStyle(fontSize: 14, color: _AdminTheme.slate),
                     ),
+                    if (isDonationRequest && (goalAmount != null || neededItems.isNotEmpty || usagePurpose.isNotEmpty || hospitalName.isNotEmpty || deliveryInfo.isNotEmpty)) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        '후원 요청 요약 (검수 참고)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _AdminTheme.accent,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _AdminTheme.darkNavy,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: _AdminTheme.coral.withValues(alpha: 0.4)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _summaryRow('후원 유형', fundingType == FirestorePostKeys.fundingTypeGoods ? '후원물품' : '후원금'),
+                            if (goalAmount != null && (goalAmount is num) && (goalAmount as num) > 0)
+                              _summaryRow('목표 금액', '${(goalAmount as num).toStringAsFixed(0)}원'),
+                            if (neededItems.isNotEmpty) _summaryRow('필요 물품', neededItems),
+                            if (goodsQuantity.isNotEmpty) _summaryRow('수량', goodsQuantity),
+                            if (deliveryInfo.isNotEmpty) _summaryRow('배송 정보', deliveryInfo),
+                            if (hospitalName.isNotEmpty) _summaryRow('병원명', hospitalName),
+                            if (usagePurpose.isNotEmpty) _summaryRow('사용 목적', usagePurpose),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     const Text(
                       '내용',
