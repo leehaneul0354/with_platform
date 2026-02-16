@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/donation_service.dart';
@@ -210,7 +211,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
                               child: CachedNetworkImage(
                                 imageUrl: url,
                                 fit: BoxFit.contain,
@@ -218,7 +219,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 placeholder: (_, __) => AspectRatio(
                                   aspectRatio: 16 / 9,
                                   child: Container(
-                                    color: AppColors.inactiveBackground,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppColors.inactiveBackground,
+                                          AppColors.inactiveBackground.withValues(alpha: 0.5),
+                                          AppColors.inactiveBackground,
+                                        ],
+                                      ),
+                                    ),
                                     child: const Center(
                                       child: SizedBox(
                                         width: 32,
@@ -230,9 +241,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 ),
                                 errorWidget: (_, __, ___) => Container(
                                   height: 200,
-                                  color: AppColors.inactiveBackground,
-                                  child: const Center(
-                                    child: Icon(Icons.broken_image, size: 48, color: AppColors.textSecondary),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.inactiveBackground,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Image.asset(
+                                    WithMascots.defaultPlaceholder,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(Icons.broken_image, size: 48, color: AppColors.textSecondary),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -384,7 +402,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             backgroundColor: AppColors.coral,
                             foregroundColor: AppColors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                           child: const Text('후원하기', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
@@ -421,7 +439,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               backgroundColor: _deleteRed,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                             ),
                           ),

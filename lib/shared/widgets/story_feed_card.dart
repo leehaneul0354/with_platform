@@ -5,11 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/assets.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
 import '../../core/services/admin_service.dart' show showDeletePostConfirmDialog, deletePost;
 import '../../features/post/post_detail_screen.dart';
+import 'shimmer_image.dart';
 
 class StoryFeedCard extends StatelessWidget {
   const StoryFeedCard({
@@ -37,7 +39,7 @@ class StoryFeedCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
       child: InkWell(
         onTap: () {
@@ -103,23 +105,10 @@ class StoryFeedCard extends StatelessWidget {
             AspectRatio(
               aspectRatio: 16 / 9,
               child: firstImageUrl != null && firstImageUrl.isNotEmpty
-                  ? Image.network(
-                      firstImageUrl,
+                  ? ShimmerImage(
+                      imageUrl: firstImageUrl,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: AppColors.inactiveBackground,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) => _placeholderImage(),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                     )
                   : _placeholderImage(),
             ),
@@ -318,9 +307,16 @@ class StoryFeedCard extends StatelessWidget {
   Widget _placeholderImage() {
     return Container(
       width: double.infinity,
-      color: AppColors.inactiveBackground,
-      child: const Center(
-        child: Icon(Icons.image_outlined, size: 48, color: AppColors.textSecondary),
+      decoration: BoxDecoration(
+        color: AppColors.inactiveBackground,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+      ),
+      child: Image.asset(
+        WithMascots.defaultPlaceholder,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Center(
+          child: Icon(Icons.image_outlined, size: 48, color: AppColors.textSecondary),
+        ),
       ),
     );
   }

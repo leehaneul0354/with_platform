@@ -17,6 +17,7 @@ import '../../shared/widgets/donor_rank_list.dart';
 import '../../shared/widgets/today_thank_you_grid.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../admin/admin_dashboard_screen.dart';
+import '../admin/admin_main_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
 import 'main_content_desktop.dart';
@@ -44,8 +45,51 @@ class _MainScreenState extends State<MainScreen> {
       AuthRepository.instance.currentUser?.isAdmin == true;
 
   void _onBottomTab(int index) {
-    final isAdmin = _isAdmin;
-    if (!_isLoggedIn && (index == 1 || index == 2 || (isAdmin && index == 3))) {
+    // 일반 유저의 경우: 홈(0), 사연등록(1), 마이페이지(2)
+    // 관리자의 경우: 홈(0), 컨트롤타워(1), 추가(2), 마이페이지(3), 관리자설정(4)
+    
+    if (_isAdmin) {
+      // 관리자 탭 처리 (5개 탭)
+      _handleAdminTab(index);
+    } else {
+      // 일반 유저 탭 처리 (3개 탭)
+      switch (index) {
+        case 0: // 홈
+          setState(() => _bottomIndex = 0);
+          break;
+        case 1: // 사연등록 - 즉시 처리
+          if (!_isLoggedIn) {
+            LoginPromptDialog.show(
+              context,
+              onLoginTap: _navigateToLogin,
+              onSignupTap: _navigateToSignup,
+            );
+            return;
+          }
+          // PostCreateChoiceScreen으로 즉시 이동
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
+          );
+          break;
+        case 2: // 마이페이지
+          if (!_isLoggedIn) {
+            LoginPromptDialog.show(
+              context,
+              onLoginTap: _navigateToLogin,
+              onSignupTap: _navigateToSignup,
+            );
+            return;
+          }
+          setState(() => _bottomIndex = 2);
+          break;
+      }
+    }
+  }
+
+  /// 관리자 탭 처리 (5개 탭)
+  void _handleAdminTab(int index) {
+    // 로그인 필요 체크
+    if (!_isLoggedIn && index != 0) {
       LoginPromptDialog.show(
         context,
         onLoginTap: _navigateToLogin,
@@ -53,21 +97,72 @@ class _MainScreenState extends State<MainScreen> {
       );
       return;
     }
-    // 가운데 [+] 탭 → 게시글 작성 선택 페이지
-    if (index == 1) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
-      );
-      return;
+
+    switch (index) {
+      case 0: // 홈
+        setState(() => _bottomIndex = 0);
+        break;
+      case 1: // 관리자 컨트롤 타워 (AdminMainScreen)
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+        );
+        break;
+      case 2: // 추가 (사연등록)
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
+        );
+        break;
+      case 3: // 마이페이지
+        setState(() => _bottomIndex = 3);
+        break;
+      case 4: // 관리자 세부설정 (AdminDashboardScreen)
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+        );
+        break;
     }
-    // 관리자 전용 '관리' 탭(인덱스 2) → AdminDashboardScreen으로 이동
-    if (isAdmin && index == 2) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-      );
-      return;
+  }
+
+  /// 일반 유저 탭 처리 (3개 탭)
+  void _handleUserTab(int index) {
+    debugPrint('[MAIN_SCREEN] : 일반 유저 탭 클릭 - index: $index, isLoggedIn: $_isLoggedIn');
+    
+    switch (index) {
+      case 0: // 홈
+        setState(() => _bottomIndex = 0);
+        break;
+      case 1: // 사연등록
+        // 로그인 필요 체크
+        if (!_isLoggedIn) {
+          LoginPromptDialog.show(
+            context,
+            onLoginTap: _navigateToLogin,
+            onSignupTap: _navigateToSignup,
+          );
+          return;
+        }
+        // 모든 유저(후원자, 환자, 일반회원)가 접근 가능
+        debugPrint('[MAIN_SCREEN] : 사연등록 화면으로 이동');
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
+        ).then((_) {
+          // 화면 복귀 시 상태 갱신
+          if (mounted) setState(() {});
+        });
+        break;
+      case 2: // 마이페이지
+        // 로그인 필요 체크
+        if (!_isLoggedIn && index != 0) {
+          LoginPromptDialog.show(
+            context,
+            onLoginTap: _navigateToLogin,
+            onSignupTap: _navigateToSignup,
+          );
+          return;
+        }
+        setState(() => _bottomIndex = 2);
+        break;
     }
-    setState(() => _bottomIndex = index);
   }
 
   void _onDonateTap() {
@@ -119,6 +214,80 @@ class _MainScreenState extends State<MainScreen> {
     ).then((_) {
       if (mounted) setState(() {});
     });
+  }
+
+  /// IndexedStack의 인덱스 계산
+  /// 홈(0)과 마이페이지만 IndexedStack에 포함, 나머지는 Navigator.push로 처리
+  int _getIndexedStackIndex() {
+    if (_isAdmin) {
+      // 관리자: 홈(0) 또는 마이페이지(3)일 때만 IndexedStack 사용
+      return _bottomIndex == 3 ? 1 : 0;
+    } else {
+      // 일반 유저: 홈(0) 또는 마이페이지(2)일 때만 IndexedStack 사용
+      return _bottomIndex == 2 ? 1 : 0;
+    }
+  }
+
+  /// IndexedStack의 children 동적 생성 (홈, 마이페이지만 포함)
+  List<Widget> _buildIndexedStackChildren() {
+    final homeScreen = ResponsiveLayout(
+      mobileChild: _buildMobileHomeScroll(),
+      desktopChild: Column(
+        children: [
+          if (_currentNickname != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '안녕하세요, $_currentNickname님',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ),
+            ),
+          Transform.translate(
+            offset: const Offset(0, -50),
+            child: PlatformStatsCard(
+              subtitle: _isLoggedIn
+                  ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
+                  : '반갑습니다',
+            ),
+          ),
+          Expanded(
+            child: MainContentDesktop(
+              isFeedSelected: _isFeedSelected,
+              onToggleChanged: (v) => setState(() => _isFeedSelected = v),
+              displayNickname: _currentNickname,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final myPageScreen = MyPageScreen(
+      onLoginTap: _navigateToLogin,
+      onSignupTap: _navigateToSignup,
+      onLogout: () {
+        if (mounted) setState(() => _bottomIndex = 0);
+      },
+    );
+
+    return [homeScreen, myPageScreen];
+  }
+
+  /// BottomNavigationBar의 currentIndex 계산
+  int _getBottomNavIndex() {
+    if (_isAdmin) {
+      // 관리자: 0~4 범위
+      return _bottomIndex.clamp(0, 4);
+    } else {
+      // 일반 유저: 0~2 범위
+      return _bottomIndex.clamp(0, 2);
+    }
   }
 
   /// 모바일 홈: 노란 바만 pinned, 핑크 카드·피드까지 한 번에 스크롤 (CustomScrollView + SliverAppBar).
@@ -229,73 +398,12 @@ class _MainScreenState extends State<MainScreen> {
                 onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
               ),
         body: IndexedStack(
-          index: _bottomIndex.clamp(0, _isAdmin ? 3 : 2),
-          children: [
-            ResponsiveLayout(
-              mobileChild: _buildMobileHomeScroll(),
-              desktopChild: Column(
-                children: [
-                  if (_currentNickname != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '안녕하세요, $_currentNickname님',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
-                      ),
-                    ),
-                  Transform.translate(
-                    offset: const Offset(0, -50),
-                    child: PlatformStatsCard(
-                      subtitle: _isLoggedIn
-                          ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
-                          : '반갑습니다',
-                    ),
-                  ),
-                  Expanded(
-                    child: MainContentDesktop(
-                      isFeedSelected: _isFeedSelected,
-                      onToggleChanged: (v) => setState(() => _isFeedSelected = v),
-                      displayNickname: _currentNickname,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Center(
-              child: Text(
-                '추가 기능 준비 중',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            if (_isAdmin)
-              const Center(
-                child: Text(
-                  '관리',
-                  style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
-                ),
-              ),
-            MyPageScreen(
-              onLoginTap: _navigateToLogin,
-              onSignupTap: _navigateToSignup,
-              onLogout: () {
-                if (mounted) setState(() => _bottomIndex = 0);
-              },
-            ),
-          ],
+          index: _getIndexedStackIndex(),
+          children: _buildIndexedStackChildren(),
         ),
         bottomNavigationBar: ResponsiveHelper.isMobile(context)
             ? BottomNavBar(
-                currentIndex: _bottomIndex,
+                currentIndex: _getBottomNavIndex(),
                 onTabSelected: _onBottomTab,
                 isLoggedIn: _isLoggedIn,
                 isAdmin: _isAdmin,

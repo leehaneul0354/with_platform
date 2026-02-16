@@ -20,7 +20,11 @@ class MainContentMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isFeedSelected) {
-      return const ApprovedPostsFeed();
+      return const CustomScrollView(
+        slivers: [
+          ApprovedPostsFeedSliver(),
+        ],
+      );
     }
 
     return SingleChildScrollView(

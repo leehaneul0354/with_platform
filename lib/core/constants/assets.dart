@@ -41,6 +41,12 @@ class WithMascots {
 
   /// 메인 카드 우측 하단 노란색 마스코트
   static const String cardMascot = 'assets/images/mascot_yellow.png';
+
+  /// WITH 메인 마스코트 (브랜드 자산)
+  static const String withMascot = 'assets/images/with_mascot.png';
+
+  /// 기본 플레이스홀더 이미지 (에러 시 사용)
+  static const String defaultPlaceholder = 'assets/images/default_placeholder.png';
 }
 
 /// 마스코트 스타일 가이드 (UI 설계 시 유지할 기준)
