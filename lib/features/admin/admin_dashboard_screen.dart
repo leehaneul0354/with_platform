@@ -1,13 +1,14 @@
 // 목적: 관리자 전용 대시보드. 다크 네이비 테마, 통계·승인 대기 사연 카드·풀시트 상세.
 // 흐름: 권한 검사(Firestore type=='admin' 또는 로컬 isAdmin) → 통계·pending 실시간 스트림 → 탭 시 풀시트 상세·승인/반려.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
+import 'admin_thank_you_detail_screen.dart';
 import '../main/main_screen.dart';
 
 /// 관리자 전용 컬러 — 다크 네이비 테마
@@ -138,29 +139,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  /// 감사 편지 삭제: 피드 삭제와 동일 플로우 — 공통 확인 다이얼로그 → Firestore 삭제 → 스낵바.
   Future<void> _deleteThankYou(String docId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('감사 편지 삭제'),
-        content: const Text('정말 이 감사 편지를 삭제하시겠습니까?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('취소')),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: _AdminTheme.danger),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
+    final confirm = await showDeleteConfirmDialog(
+      context,
+      title: '감사 편지 삭제',
+      content: '정말 이 감사 편지를 삭제하시겠습니까?',
     );
     if (confirm != true) return;
     final ok = await deleteThankYouPost(docId);
     if (mounted) {
       if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('삭제되었습니다.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('감사 편지가 삭제되었습니다.')));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('삭제 실패.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('삭제 실패. 권한을 확인해 주세요.')));
       }
     }
   }
@@ -351,8 +343,11 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
     if (uriMatch != null) {
       debugPrint('[ADMIN] Firebase 복합 인덱스 생성 링크: ${uriMatch.group(0)}');
     }
+    // setState는 빌드 중에 호출되면 안 되므로, 프레임 끝난 뒤 실행
     if (_useOrderBy && mounted) {
-      setState(() => _useOrderBy = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _useOrderBy = false);
+      });
     }
   }
 
@@ -412,10 +407,24 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
             final imageUrls = data[ThankYouPostKeys.imageUrls];
             final urls = imageUrls is List ? (imageUrls as List).cast<String>() : <String>[];
             final firstUrl = urls.isNotEmpty ? urls.first : null;
-            return Material(
-              color: _AdminTheme.navy,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
+            
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AdminThankYouDetailScreen(
+                      docId: doc.id,
+                      data: data,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _AdminTheme.navy,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,10 +435,20 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
                         width: 72,
                         height: 72,
                         child: firstUrl != null
-                            ? Image.network(
-                                firstUrl,
+                            ? CachedNetworkImage(
+                                imageUrl: firstUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                placeholder: (_, __) => Container(
+                                  color: _AdminTheme.slate,
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: _AdminTheme.light),
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => Container(
                                   color: _AdminTheme.slate,
                                   child: const Icon(Icons.image_not_supported, color: _AdminTheme.light),
                                 ),
@@ -444,6 +463,7 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             patientName,
@@ -487,38 +507,34 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
                         ],
                       ),
                     ),
-                    Column(
+                    // 우측 액션: 상세 보기 + 삭제 (IconButton은 GestureDetector의 onTap과 충돌 방지)
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          onPressed: () {
-                            showModalBottomSheet<void>(
-                              context: context,
-                              backgroundColor: _AdminTheme.navy,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                              ),
-                              builder: (ctx) => _ThankYouDetailSheet(
-                                data: data,
-                                onApprove: () {
-                                  Navigator.of(ctx).pop();
-                                  widget.onApprove(doc.id, data);
-                                },
-                                onDelete: () async {
-                                  Navigator.of(ctx).pop();
-                                  await widget.onDelete(doc.id);
-                                },
-                                onClose: () => Navigator.of(ctx).pop(),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => AdminThankYouDetailScreen(
+                                  docId: doc.id,
+                                  data: data,
+                                ),
                               ),
                             );
                           },
-                          icon: const Icon(Icons.chevron_right, color: _AdminTheme.slate, size: 24),
-                          tooltip: '상세',
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            child: const Icon(Icons.chevron_right, color: _AdminTheme.slate, size: 24),
+                          ),
                         ),
-                        IconButton(
-                          onPressed: () => widget.onDelete(doc.id),
-                          icon: const Icon(Icons.delete_outline, color: _AdminTheme.danger, size: 22),
-                          tooltip: '삭제',
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => widget.onDelete(doc.id),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            child: const Icon(Icons.delete_outline, color: _AdminTheme.danger, size: 22),
+                          ),
                         ),
                       ],
                     ),
@@ -527,150 +543,6 @@ class _ThankYouTabState extends State<_ThankYouTab> with AutomaticKeepAliveClien
               ),
             );
           },
-        );
-      },
-    );
-  }
-}
-
-/// 감사 편지 상세 시트 — 내용 확인 후 승인 / 삭제
-class _ThankYouDetailSheet extends StatelessWidget {
-  const _ThankYouDetailSheet({
-    required this.data,
-    required this.onApprove,
-    required this.onDelete,
-    required this.onClose,
-  });
-
-  final Map<String, dynamic> data;
-  final VoidCallback onApprove;
-  final VoidCallback onDelete;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = data[ThankYouPostKeys.title]?.toString() ?? '(제목 없음)';
-    final content = data[ThankYouPostKeys.content]?.toString() ?? '';
-    final patientName = data[ThankYouPostKeys.patientName]?.toString() ?? '-';
-    final postTitle = data[ThankYouPostKeys.postTitle]?.toString();
-    final usagePurpose = (data[ThankYouPostKeys.usagePurpose]?.toString() ?? '').trim();
-    final imageUrls = data[ThankYouPostKeys.imageUrls] is List
-        ? (data[ThankYouPostKeys.imageUrls] as List).cast<String>()
-        : <String>[];
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _AdminTheme.light,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(onPressed: onClose, icon: const Icon(Icons.close, color: _AdminTheme.light)),
-                ],
-              ),
-              Text(
-                '작성자: $patientName',
-                style: const TextStyle(fontSize: 14, color: _AdminTheme.slate),
-              ),
-              if (postTitle != null && postTitle.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '연결 게시물: $postTitle',
-                    style: const TextStyle(fontSize: 13, color: _AdminTheme.slate),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              if (usagePurpose.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '사용 목적: $usagePurpose',
-                    style: const TextStyle(fontSize: 13, color: _AdminTheme.accent),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        content,
-                        style: const TextStyle(fontSize: 14, color: _AdminTheme.light, height: 1.5),
-                      ),
-                      if (imageUrls.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        ...imageUrls.map((url) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  url,
-                                  fit: BoxFit.contain,
-                                  width: double.infinity,
-                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                                ),
-                              ),
-                            )),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: onApprove,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _AdminTheme.accent,
-                        foregroundColor: _AdminTheme.darkNavy,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('승인 (투데이 노출)'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onDelete,
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      label: const Text('삭제'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _AdminTheme.danger,
-                        foregroundColor: _AdminTheme.light,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         );
       },
     );

@@ -20,7 +20,7 @@
   - **마스코트:** 단순 기하 도형(원·사각형·삼각형)+감은 눈·미소, 파스텔 노랑·분홍·하늘·연두. 로딩 화면·프로필 기본 이미지·후원 완료 축하 페이지에 사용 예정.
   - **관리자 대시보드:** admin/admin0000 로그인 시 AdminMainScreen으로 분기. 비관리자 접근 가드. 통계(총/후원자/환자), 회원 리스트(닉네임·역할·가입일·상태·상세보기), 회원 상세(이메일·Trust Score·투병/후원 영역·인증 완료). SharedPreferences 회원 데이터 연동.
   - **게시글 작성 이원화:** 하단 네비 가운데 [+] 탭 → `PostCreateChoiceScreen`(투병 기록 남기기 / 감사 편지 쓰기). **투병 기록:** `PostUploadScreen` — 제목·내용(20자 이상)·사진 0~3장(선택), Firestore `posts`에 `type: 'struggle'`, 저장 후 "검토 후 업로드됩니다." **감사 편지:** `ThankYouPostListScreen`(현재 유저의 승인된 투병 기록 목록) → 게시물 선택 → `ThankYouLetterUploadScreen`(제목·내용·사진 0~3장) → Firestore `thank_you_posts`에 `status: pending`, `type: 'thanks'` 저장 후 "검토 후 업로드됩니다."
-  - **관리자 대시보드:** 상단 탭 [투병 기록 승인] | [감사 편지 승인]. **투병 기록:** 기존 pending 사연 리스트·상세 시트·승인/반려/삭제(삭제 버튼 상시). **감사 편지:** pending 감사 편지 리스트·상세 시트·승인(→ `today_thank_you` 이동·투데이 탭 노출)/삭제(삭제 버튼 상시). `admin_service`: `deleteThankYouPost`, `approveThankYouPost`.
+  - **관리자 대시보드:** 상단 탭 [투병 기록 승인] | [감사 편지 승인]. **투병 기록:** 기존 pending 사연 리스트·상세 시트·승인/반려/삭제(삭제 버튼 상시). **감사 편지:** pending 감사 편지 리스트에서 탭 시 **관리자 전용** `AdminThankYouDetailScreen`(풀스크린)으로 이동. 상세 화면 진입 시 `currentUser.type == admin` 재확인, 비관리자면 '권한이 없습니다' 스낵바 후 즉시 pop. 상세 화면 하단 고정 [삭제]/[승인], 이미지·환자명·편지 내용·사용 목적(usagePurpose) 한눈에 표시. 삭제: 확인 팝업 후 Firestore 제거. 승인: `approveThankYouPost` → today_thank_you 노출·스낵바. `admin_service`: `deleteDocument`, `deletePost`, `deleteThankYouPost`, `showDeleteConfirmDialog`, `approveThankYouPost`.
   - **투데이 탭:** '한줄 후기 감사편지' 영역이 Firestore `today_thank_you` 컬렉션 실시간 스트림으로 표시(승인된 감사 편지).
   - **메인:** 모바일 우측 하단 FAB 제거. 하단 네비 [+] → `PostCreateChoiceScreen`. 마이페이지 관리자 전용 '관리자 대시보드' → `AdminDashboardScreen` 진입 시 admin 권한 체크 후 비관리자 즉시 퇴장.
   - **WITH Pay:** Firestore `users` 문서에 `withPayBalance`(int, 기본 0). `WithPayService`: `rechargeWithPay(userId, amount, paymentMethod)`(Transaction·increment + `recharges` 컬렉션 내역 저장), `getWithPayBalance`, `withPayBalanceStream`, `balanceFromSnapshot`. 충전 UX: 금액 선택 → [충전하기] → 결제 수단 선택 BottomSheet(신용카드/카카오페이/네이버페이/토스) → `PaymentService.startPay()`(추후 Portone 등 PG 교체용) → 가상 결제 모달(PaymentWebViewMock: 2.5초 로딩 → "지문/비밀번호 입력" + [확인]) → 충전 처리 → RechargeSuccessScreen(초록 체크 + "충전이 완료되었습니다!" + 잔액 + [확인]) → 마이페이지 복귀 시 StreamBuilder로 잔액 최신화. Firestore `recharges`: userId, amount, paymentMethod, createdAt.
@@ -70,8 +70,9 @@
 | `lib/features/main/thank_you_post_list_screen.dart` | 현재 유저의 승인된 투병 기록 목록, 선택 시 ThankYouLetterUploadScreen |
 | `lib/features/main/thank_you_letter_upload_screen.dart` | 감사 편지 폼(제목·내용·사진 0~3장) → thank_you_posts 저장 |
 | `lib/features/post/post_upload_screen.dart` | 투병 기록: 제목/내용(20자 이상)/사진(0~3장), type struggle, "검토 후 업로드됩니다." |
-| `lib/features/admin/admin_dashboard_screen.dart` | 탭 [투병 기록 승인][감사 편지 승인], 리스트별 삭제 상시, 감사 편지 승인→today_thank_you |
-| `lib/core/services/admin_service.dart` | deletePost, deleteThankYouPost, approveThankYouPost |
+| `lib/features/admin/admin_dashboard_screen.dart` | 탭 [투병 기록 승인][감사 편지 승인], 감사 편지 리스트 탭 시 AdminThankYouDetailScreen push |
+| `lib/features/admin/admin_thank_you_detail_screen.dart` | 관리자 전용 감사 편지 상세 풀스크린. 진입 시 admin 재확인, 하단 [삭제][승인], 이미지/환자명/내용/사용목적 레이아웃 |
+| `lib/core/services/admin_service.dart` | deleteDocument(컬렉션 경로·docId), deletePost/deleteThankYouPost 래퍼, showDeleteConfirmDialog, approveThankYouPost |
 
 ---
 
@@ -132,7 +133,7 @@
    - admin 로그인 시: `MainScreen`에서 `pushReplacement(AdminMainScreen)`. 앱 기동 시 currentUser가 admin이면 동일하게 치환.  
    - `AdminMainScreen`: 진입 시 `currentUser?.isAdmin != true`이면 `pushAndRemoveUntil(MainScreen)`. 통계(총/후원자/환자)는 `getUsers()` 결과로 계산. 회원 리스트에서 상세보기 → `AdminMemberDetailScreen(user)`.  
    - `AdminMemberDetailScreen`: 기본정보·Trust Score 입력·환자 시 투병 기록(플레이스홀더)·인증 완료 체크·후원자 시 후원 내역(플레이스홀더). 저장 시 `AuthRepository.updateUser(updated)`.  
-   - **AdminDashboardScreen**(마이페이지 '관리자 대시보드'): 진입 시 admin 권한 체크, 비관리자 즉시 MainScreen으로 퇴장. Firestore `posts` where status==pending 스트림 → 리스트(제목/작성자/첨부사진 수) → 탭 시 상세 다이얼로그 → 승인/반려 시 해당 문서 status를 approved/rejected로 업데이트.
+   - **AdminDashboardScreen**(마이페이지 '관리자 대시보드'): 진입 시 admin 권한 체크, 비관리자 즉시 MainScreen으로 퇴장. 투병 기록: Firestore pending 스트림 → 탭 시 상세 시트 → 승인/반려/삭제. 감사 편지: pending 스트림 → 탭 시 **AdminThankYouDetailScreen** 풀스크린 push → 진입 시 admin 재확인(아니면 '권한이 없습니다' 후 pop) → 하단 [삭제]/[승인] 고정.
 
 6. **환자 사연 신청**  
    - 메인: `UserType.patient`이고 모바일일 때만 FAB(+) 표시 → 탭 시 `PostUploadScreen` push.  
@@ -144,7 +145,7 @@
    - `core/auth` (UserModel, AuthRepository) → `features/auth`, `features/main`  
    - `shared/widgets` → `features/main`, `features/auth`  
    - `features/auth` (LoginScreen, SignupScreen) → `core/auth`, `shared/widgets`  
-   - `features/admin` (AdminMainScreen, AdminMemberDetailScreen, AdminDashboardScreen) → `core/auth`, `features/main`(복귀용), Firestore posts  
+   - `features/admin` (AdminMainScreen, AdminMemberDetailScreen, AdminDashboardScreen, AdminThankYouDetailScreen) → `core/auth`, `features/main`(복귀용), Firestore posts  
    - `features/post` (PostUploadScreen, PostDetailScreen) → `core/auth`, `core/services/imgbb_upload`, `core/services/donation_service`, `core/services/with_pay_service`, Firestore posts  
    - `core/services/imgbb_upload` → `http`, `image_picker` (XFile.readAsBytes)
 
@@ -154,4 +155,4 @@
 
 ---
 
-*마지막 갱신: 게시글 작성 이원화(하단 [+] → PostCreateChoiceScreen, 투병 기록/감사 편지), posts type·0~3장 사진, thank_you_posts/today_thank_you, AdminDashboard 탭(투병/감사)·감사 편지 승인→투데이 노출, FAB 제거.*
+*마지막 갱신: 감사 편지 상세를 관리자 전용 풀스크린(AdminThankYouDetailScreen)으로 전환. 진입 시 admin 재확인·비관리자 퇴장, 하단 [삭제]/[승인] 고정, 이미지·환자명·내용·사용목적 레이아웃. AdminDashboard 감사 편지 리스트 탭 시 해당 화면으로 push, 기존 시트 제거.*

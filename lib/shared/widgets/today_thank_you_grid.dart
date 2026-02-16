@@ -1,6 +1,7 @@
 // 목적: 투데이 탭 '환자들의 감사편지' — today_thank_you 실시간 스트림, 2열 그리드, 카드 탭 시 상세 화면.
 // 흐름: 메인 스크롤/데스크톱에서 사용. 이미지 없으면 따뜻한 플레이스홀더, 카드 간격 8, BorderRadius 12.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
@@ -83,7 +84,10 @@ class TodayThankYouGrid extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => ThankYouDetailScreen(data: data),
+                      builder: (_) => ThankYouDetailScreen(
+                        data: data,
+                        todayDocId: doc.id, // today_thank_you 문서 ID 전달 (관리자 삭제용)
+                      ),
                     ),
                   );
                 },
@@ -140,14 +144,11 @@ class _ThankYouGridCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                   child: firstUrl != null && firstUrl.isNotEmpty
-                      ? Image.network(
-                          firstUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: firstUrl,
                           fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return _warmPlaceholder();
-                          },
-                          errorBuilder: (_, __, ___) => _warmPlaceholder(),
+                          placeholder: (_, __) => _warmPlaceholder(),
+                          errorWidget: (_, __, ___) => _warmPlaceholder(),
                         )
                       : _warmPlaceholder(),
                 ),

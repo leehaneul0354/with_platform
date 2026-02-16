@@ -1,26 +1,74 @@
 // 목적: 투데이 감사 편지 카드 탭 시 상세 내용 표시. 제목·환자명·본문·이미지(또는 플레이스홀더).
-// 흐름: TodayThankYouGrid 카드 탭 → 본 화면(풀스크린 또는 모달).
+// 흐름: TodayThankYouGrid 카드 탭 → 본 화면(풀스크린 또는 모달). 관리자일 경우 하단 삭제 버튼 노출.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../core/auth/auth_repository.dart';
+import '../../core/auth/user_model.dart';
+import '../../core/constants/admin_account.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
+import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
 
-class ThankYouDetailScreen extends StatelessWidget {
+class ThankYouDetailScreen extends StatefulWidget {
   const ThankYouDetailScreen({
     super.key,
     required this.data,
+    this.todayDocId, // today_thank_you 컬렉션의 문서 ID (삭제용)
   });
 
   final Map<String, dynamic> data;
+  final String? todayDocId; // today_thank_you 문서 ID (관리자 삭제용)
+
+  @override
+  State<ThankYouDetailScreen> createState() => _ThankYouDetailScreenState();
+}
+
+class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
+  bool _isAdmin = false;
+  bool _adminChecked = false;
+
+  Future<void> _checkAdmin() async {
+    if (!mounted) return;
+    var user = AuthRepository.instance.currentUser;
+    
+    // admin ID 기반 즉시 승인
+    bool isAdmin = false;
+    if (user != null && user.id == AdminAccount.id) {
+      isAdmin = true;
+    } else if (user != null) {
+      isAdmin = user.type == UserType.admin || user.isAdmin;
+      if (!isAdmin) {
+        await AuthRepository.instance.fetchUserFromFirestore(user.id);
+        final current = AuthRepository.instance.currentUser;
+        isAdmin = current != null && (current.type == UserType.admin || current.isAdmin);
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isAdmin = isAdmin;
+        _adminChecked = true;
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAdmin());
+  }
 
   @override
   Widget build(BuildContext context) {
+    final data = widget.data;
     final title = data[ThankYouPostKeys.title]?.toString() ?? '(제목 없음)';
     final content = data[ThankYouPostKeys.content]?.toString() ?? '';
     final patientName = data[ThankYouPostKeys.patientName]?.toString() ?? '-';
     final imageUrls = data[ThankYouPostKeys.imageUrls] is List
         ? (data[ThankYouPostKeys.imageUrls] as List).cast<String>()
         : <String>[];
+    final postId = data[ThankYouPostKeys.postId]?.toString(); // thank_you_posts 문서 ID
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -68,27 +116,24 @@ class ThankYouDetailScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        url,
+                      child: CachedNetworkImage(
+                        imageUrl: url,
                         fit: BoxFit.contain,
                         width: double.infinity,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Container(
-                              color: AppColors.inactiveBackground,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 32,
-                                  height: 32,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
+                        placeholder: (_, __) => AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: Container(
+                            color: AppColors.inactiveBackground,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               ),
                             ),
-                          );
-                        },
-                        errorBuilder: (_, __, ___) => _warmPlaceholder(),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => _warmPlaceholder(),
                       ),
                     ),
                   )),
@@ -108,6 +153,65 @@ class ThankYouDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+      // 관리자 전용 삭제 버튼 (하단 고정)
+      bottomNavigationBar: _isAdmin && _adminChecked && (widget.todayDocId != null || postId != null)
+          ? Container(
+              color: Colors.white,
+              padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final confirm = await showDeleteConfirmDialog(
+                      context,
+                      title: '감사 편지 삭제',
+                      content: '관리자 권한으로 이 편지를 삭제하시겠습니까?\n(투데이 노출과 원본 모두 삭제됩니다)',
+                    );
+                    if (!context.mounted || confirm != true) return;
+                    
+                    // today_thank_you와 thank_you_posts 양쪽 삭제
+                    bool success = true;
+                    if (widget.todayDocId != null) {
+                      final ok = await deleteDocument(FirestoreCollections.todayThankYou, widget.todayDocId!);
+                      if (!ok) success = false;
+                    }
+                    if (postId != null) {
+                      final ok = await deleteThankYouPost(postId);
+                      if (!ok) success = false;
+                    }
+                    
+                    if (!context.mounted) return;
+                    Navigator.of(context).pop(); // 화면 닫기
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          success
+                              ? '감사 편지가 삭제되었습니다.'
+                              : '삭제 처리 중 일부 오류가 발생했습니다.',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  label: const Text('이 감사 편지 삭제'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                    side: BorderSide(color: Colors.red.shade300, width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 
