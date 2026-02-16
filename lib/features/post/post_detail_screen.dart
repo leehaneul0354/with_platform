@@ -117,8 +117,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (!mounted) return;
     setState(() => _isPaymentLoading = false);
     if (ok) {
+      // 권한 승격 후 유저 정보 갱신
+      await AuthRepository.instance.fetchUserFromFirestore(user.id);
+      if (!mounted) return;
+      
+      // 권한 승격 여부 확인
+      final updatedUser = AuthRepository.instance.currentUser;
+      final wasViewer = user.type == UserType.viewer;
+      final isNowDonor = updatedUser?.type == UserType.donor;
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('결제 성공 — 감사합니다.')),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.celebration, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  wasViewer && isNowDonor
+                      ? '후원이 완료되었습니다! 이제부터 댓글 작성 시 천사 뱃지가 표시됩니다. ✨'
+                      : '후원이 완료되었습니다! 감사합니다. ✨',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.coral,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -129,9 +158,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = AuthRepository.instance.currentUser?.type == UserType.admin ||
-        AuthRepository.instance.currentUser?.isAdmin == true;
-    debugPrint('[SYSTEM] : PostDetailScreen 빌드 — isAdmin=$isAdmin');
+    final user = AuthRepository.instance.currentUser;
+    final isAdmin = user?.type == UserType.admin || user?.isAdmin == true;
+    final patientId = widget.data[FirestorePostKeys.patientId]?.toString() ?? '';
+    final isOwner = user != null && user.id == patientId;
+    debugPrint('[SYSTEM] : PostDetailScreen 빌드 — isAdmin=$isAdmin, isOwner=$isOwner');
     final title = widget.data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
     final content = widget.data[FirestorePostKeys.content]?.toString() ?? '';
     final patientName = widget.data[FirestorePostKeys.patientName]?.toString() ?? '-';
@@ -158,6 +189,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             backgroundColor: AppColors.yellow,
             foregroundColor: AppColors.textPrimary,
             elevation: 0,
+            actions: [
+              if (isOwner || isAdmin)
+                IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () => _showPostMenu(context),
+                ),
+            ],
           ),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -321,6 +359,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               postId: widget.postId,
                               postType: 'post',
                               patientId: widget.data[FirestorePostKeys.patientId]?.toString() ?? '',
+                              postOwnerId: patientId,
                             ),
                             const SizedBox(height: 32),
                           ],
@@ -416,6 +455,58 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
       ],
     );
+  }
+
+  void _showPostMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('게시물 삭제'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _confirmDeletePost(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('수정하기'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('수정 기능은 준비 중입니다.')),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeletePost(BuildContext context) async {
+    final confirm = await showDeletePostConfirmDialog(context);
+    if (confirm != true || !context.mounted) return;
+    final ok = await deletePost(widget.postId);
+    if (!context.mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('게시물이 삭제되었습니다.')),
+      );
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제에 실패했습니다. 다시 시도해 주세요.')),
+      );
+    }
   }
 }
 

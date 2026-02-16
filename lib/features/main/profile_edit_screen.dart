@@ -8,6 +8,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
 import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/with_header.dart';
+import '../../shared/widgets/role_badge.dart';
 
 /// WITH 포인트 컬러 #FFD400
 const Color _kYellow = Color(0xFFFFD400);
@@ -73,6 +74,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     });
   }
 
+  Future<void> _refreshUser() async {
+    final u = _user;
+    if (u != null) {
+      final fetched = await AuthRepository.instance.fetchUserFromFirestore(u.id);
+      if (mounted && fetched != null) {
+        setState(() {
+          _user = fetched;
+          _nicknameController.text = (_user?.nickname ?? '').trim();
+          _birthDate = BirthDateUtil.storedToDateTime(_user?.birthDate);
+        });
+      }
+    }
+  }
+
   Future<void> _pickBirthDate() async {
     final initial = _birthDate ?? DateTime(2000, 1, 1);
     final picked = await showDatePicker(
@@ -106,8 +121,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final updated = u.copyWith(nickname: nickname, birthDate: birthIso.isEmpty ? null : birthIso);
       await AuthRepository.instance.updateUser(updated);
       await AuthRepository.instance.setCurrentUser(updated);
+      // Firestore에서 최신 정보 다시 로드하여 역할 변경 등 반영
+      await _refreshUser();
       if (!mounted) return;
-      setState(() => _user = updated);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('회원 정보가 저장되었습니다.')));
     } catch (e) {
       if (!mounted) return;
@@ -227,6 +243,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            // 권한 뱃지
+            Center(
+              child: RoleBadge(role: u.type, size: RoleBadgeSize.medium),
             ),
             const SizedBox(height: 32),
             _label('아이디 (수정 불가)'),

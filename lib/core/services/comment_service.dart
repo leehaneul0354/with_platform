@@ -3,6 +3,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../auth/auth_repository.dart';
+import '../auth/user_model.dart';
 import '../constants/firestore_keys.dart';
 
 final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,57 +27,81 @@ Future<bool> addComment({
       return false;
     }
 
-    // 후원 여부 확인: 현재 사용자가 해당 patientId에게 후원한 기록이 있는지 조회
+    // 후원 여부 확인: 해당 게시물 후원 여부를 최우선으로 확인
     bool isSponsor = false;
+    
     try {
-      final donationsQuery = await _firestore
+      // 1순위: 해당 게시물(postId)에 직접 후원했는지 확인
+      final directDonationQuery = await _firestore
           .collection(FirestoreCollections.donations)
           .where(DonationKeys.userId, isEqualTo: userId)
+          .where(DonationKeys.postId, isEqualTo: postId)
+          .limit(1)
           .get();
-
-      for (final doc in donationsQuery.docs) {
-        final donationData = doc.data();
-        final donationPostId = donationData[DonationKeys.postId]?.toString();
-        if (donationPostId == null) continue;
-
-        String? targetPatientId;
-
-        if (postType == 'post') {
-          // 일반 게시물의 경우 직접 patientId 확인
-          final postDoc = await _firestore
-              .collection(FirestoreCollections.posts)
-              .doc(donationPostId)
+      
+      if (directDonationQuery.docs.isNotEmpty) {
+        // 해당 게시물에 직접 후원한 기록이 있으면 즉시 뱃지 부여
+        isSponsor = true;
+        debugPrint('[COMMENT] : 해당 게시물 직접 후원 확인 — 뱃지 부여');
+      } else {
+        // 2순위: donor 역할이면 자동 인증
+        final currentUser = AuthRepository.instance.currentUser;
+        if (currentUser != null && currentUser.type == UserType.donor) {
+          isSponsor = true;
+          debugPrint('[COMMENT] : donor 역할 확인 — 뱃지 부여');
+        } else {
+          // 3순위: 해당 patientId에게 후원한 기록이 있는지 확인 (기존 로직)
+          final donationsQuery = await _firestore
+              .collection(FirestoreCollections.donations)
+              .where(DonationKeys.userId, isEqualTo: userId)
               .get();
-          if (postDoc.exists) {
-            targetPatientId = postDoc.data()?[FirestorePostKeys.patientId]?.toString();
-          }
-        } else if (postType == 'thank_you') {
-          // 감사편지의 경우: donationPostId가 thank_you_posts 문서 ID일 수도 있고,
-          // 연결된 원본 게시물(postId)일 수도 있음
-          // 먼저 thank_you_posts에서 확인
-          final thankYouDoc = await _firestore
-              .collection(FirestoreCollections.thankYouPosts)
-              .doc(donationPostId)
-              .get();
-          
-          if (thankYouDoc.exists) {
-            // thank_you_posts 문서에서 patientId 확인
-            targetPatientId = thankYouDoc.data()?[ThankYouPostKeys.patientId]?.toString();
-          } else {
-            // donationPostId가 원본 게시물 ID일 수도 있음
-            final postDoc = await _firestore
-                .collection(FirestoreCollections.posts)
-                .doc(donationPostId)
-                .get();
-            if (postDoc.exists) {
-              targetPatientId = postDoc.data()?[FirestorePostKeys.patientId]?.toString();
+
+          for (final doc in donationsQuery.docs) {
+            final donationData = doc.data();
+            final donationPostId = donationData[DonationKeys.postId]?.toString();
+            if (donationPostId == null) continue;
+
+            String? targetPatientId;
+
+            if (postType == 'post') {
+              // 일반 게시물의 경우 직접 patientId 확인
+              final postDoc = await _firestore
+                  .collection(FirestoreCollections.posts)
+                  .doc(donationPostId)
+                  .get();
+              if (postDoc.exists) {
+                targetPatientId = postDoc.data()?[FirestorePostKeys.patientId]?.toString();
+              }
+            } else if (postType == 'thank_you') {
+              // 감사편지의 경우: donationPostId가 thank_you_posts 문서 ID일 수도 있고,
+              // 연결된 원본 게시물(postId)일 수도 있음
+              // 먼저 thank_you_posts에서 확인
+              final thankYouDoc = await _firestore
+                  .collection(FirestoreCollections.thankYouPosts)
+                  .doc(donationPostId)
+                  .get();
+              
+              if (thankYouDoc.exists) {
+                // thank_you_posts 문서에서 patientId 확인
+                targetPatientId = thankYouDoc.data()?[ThankYouPostKeys.patientId]?.toString();
+              } else {
+                // donationPostId가 원본 게시물 ID일 수도 있음
+                final postDoc = await _firestore
+                    .collection(FirestoreCollections.posts)
+                    .doc(donationPostId)
+                    .get();
+                if (postDoc.exists) {
+                  targetPatientId = postDoc.data()?[FirestorePostKeys.patientId]?.toString();
+                }
+              }
+            }
+
+            if (targetPatientId == patientId) {
+              isSponsor = true;
+              debugPrint('[COMMENT] : 해당 환자에게 후원 기록 확인 — 뱃지 부여');
+              break;
             }
           }
-        }
-
-        if (targetPatientId == patientId) {
-          isSponsor = true;
-          break;
         }
       }
     } catch (e) {

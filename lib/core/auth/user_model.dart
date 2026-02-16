@@ -1,12 +1,14 @@
 import '../constants/firestore_keys.dart';
 
 /// 보고서 4.1항의 역할 기반 권한 체계를 위한 열거형. Firestore에는 role/type 필드로 문자열(name) 저장.
-enum UserType { donor, patient, admin }
+enum UserType { viewer, donor, patient, admin }
 
 /// 역할 표시용 라벨 (한국어)
 extension UserTypeLabel on UserType {
   String get label {
     switch (this) {
+      case UserType.viewer:
+        return '일반 회원';
       case UserType.donor:
         return '후원자';
       case UserType.patient:
@@ -70,7 +72,7 @@ class UserModel {
         id: '',
         password: '',
         nickname: '이름없음',
-        type: UserType.donor,
+        type: UserType.viewer,
       );
     }
     final id = _readString(json, FirestoreUserKeys.userId) ?? _readString(json, FirestoreUserKeys.id) ?? '';
@@ -128,16 +130,17 @@ class UserModel {
     }
   }
 
-  /// role/type 파싱 실패 시 donor 반환으로 예외 방지
+  /// role/type 파싱 실패 시 viewer 반환으로 예외 방지 (기존 유저는 viewer로 취급)
   static UserType _parseUserTypeSafe(dynamic role) {
     try {
-      if (role == null) return UserType.donor;
+      if (role == null) return UserType.viewer;
       final s = role.toString().toLowerCase();
       if (s == 'admin') return UserType.admin;
       if (s == 'patient') return UserType.patient;
-      return UserType.donor;
+      if (s == 'donor') return UserType.donor;
+      return UserType.viewer;
     } catch (_) {
-      return UserType.donor;
+      return UserType.viewer;
     }
   }
 

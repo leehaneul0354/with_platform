@@ -13,10 +13,13 @@ import '../../core/services/with_pay_service.dart';
 import 'with_pay_recharge_dialog.dart';
 import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
+import '../../shared/widgets/role_badge.dart';
 import '../admin/admin_dashboard_screen.dart';
+import '../auth/login_screen.dart';
+import '../auth/signup_screen.dart';
 import 'donation_request_screen.dart';
 
-class MyPageScreen extends StatelessWidget {
+class MyPageScreen extends StatefulWidget {
   const MyPageScreen({
     super.key,
     this.onLoginTap,
@@ -28,6 +31,95 @@ class MyPageScreen extends StatelessWidget {
   final VoidCallback? onSignupTap;
   /// 로그아웃 완료 후 호출 (메인 갱신·탭 전환용)
   final VoidCallback? onLogout;
+
+  @override
+  State<MyPageScreen> createState() => _MyPageScreenState();
+}
+
+class _MyPageScreenState extends State<MyPageScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 실시간 업데이트를 위해 주기적으로 유저 정보 갱신
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshUser();
+    });
+  }
+
+  Future<void> _refreshUser() async {
+    final user = AuthRepository.instance.currentUser;
+    if (user != null) {
+      await AuthRepository.instance.fetchUserFromFirestore(user.id);
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _handleLoginTap() {
+    if (widget.onLoginTap != null) {
+      widget.onLoginTap!();
+    } else {
+      _navigateToLogin();
+    }
+  }
+
+  void _handleSignupTap() {
+    if (widget.onSignupTap != null) {
+      widget.onSignupTap!();
+    } else {
+      _navigateToSignup();
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('로그아웃 하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('로그아웃'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    await AuthRepository.instance.logout();
+    if (!mounted) return;
+    widget.onLogout?.call();
+    if (mounted) setState(() {});
+  }
+
+  void _navigateToLogin() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const LoginScreen(),
+      ),
+    ).then((_) {
+      if (mounted) {
+        _refreshUser();
+        setState(() {});
+      }
+    });
+  }
+
+  void _navigateToSignup() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SignupScreen(),
+      ),
+    ).then((_) {
+      if (mounted) {
+        _refreshUser();
+        setState(() {});
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +153,8 @@ class MyPageScreen extends StatelessWidget {
                 _buildWithPayCard(context, user?.id),
                 if (isLoggedIn && user != null) ...[
                   const SizedBox(height: 24),
+                  _buildRoleSection(context, user!),
+                  const SizedBox(height: 24),
                   _buildMyDonationsSection(context, user!.id),
                 ],
                 const SizedBox(height: 24),
@@ -76,7 +170,7 @@ class MyPageScreen extends StatelessWidget {
                 _buildCustomerCenterList(context, isLoggedIn, isPatient),
                 if (isLoggedIn) ...[
                   const SizedBox(height: 24),
-                  _LogoutButton(onLogout: onLogout),
+                  _LogoutButton(onLogout: _handleLogout),
                 ],
                 const SizedBox(height: 24),
               ],
@@ -143,9 +237,13 @@ class MyPageScreen extends StatelessWidget {
                           Icon(Icons.edit, size: 16, color: AppColors.textSecondary),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
+                      if (isLoggedIn) ...[
+                        RoleBadge(role: user!.type, size: RoleBadgeSize.medium),
+                        const SizedBox(height: 4),
+                      ],
                       Text(
-                        isLoggedIn ? '${user!.type.label} · WITH와 함께해요' : '닉네임과 역할이 여기에 표시돼요.',
+                        isLoggedIn ? 'WITH와 함께해요' : '닉네임과 역할이 여기에 표시돼요.',
                         style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
@@ -345,6 +443,291 @@ class MyPageScreen extends StatelessWidget {
     return value.toString();
   }
 
+  /// 역할 섹션: 현재 역할 표시 및 viewer인 경우 전환 버튼
+  Widget _buildRoleSection(BuildContext context, UserModel user) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.inactiveBackground),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                '내 역할',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          RoleBadge(role: user.type, size: RoleBadgeSize.medium),
+          if (user.type == UserType.viewer) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.coral.withValues(alpha: 0.08),
+                    AppColors.yellow.withValues(alpha: 0.08),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.coral.withValues(alpha: 0.2),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.favorite,
+                        size: 20,
+                        color: AppColors.coral,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '따뜻한 나눔을 시작하시겠습니까?',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _showDonorConversionDialog(context, user),
+                      icon: const Icon(Icons.favorite_outline, size: 20),
+                      label: const Text('후원자로 가입/전환하기'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.coral,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _getRoleColor(UserType type) {
+    switch (type) {
+      case UserType.viewer:
+        return AppColors.textSecondary;
+      case UserType.donor:
+        return AppColors.coral;
+      case UserType.patient:
+        return AppColors.yellow;
+      case UserType.admin:
+        return const Color(0xFF0D1B2A); // 다크 네이비
+    }
+  }
+
+  IconData _getRoleIcon(UserType type) {
+    switch (type) {
+      case UserType.viewer:
+        return Icons.visibility_outlined;
+      case UserType.donor:
+        return Icons.favorite_outline;
+      case UserType.patient:
+        return Icons.medical_services_outlined;
+      case UserType.admin:
+        return Icons.admin_panel_settings_outlined;
+    }
+  }
+
+  Future<void> _showDonorConversionDialog(BuildContext context, UserModel user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.favorite, color: AppColors.coral, size: 24),
+            const SizedBox(width: 8),
+            const Text(
+              '후원자로 전환',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '후원자가 되어 환자분들에게 희망을 전달하시겠습니까?',
+              style: TextStyle(fontSize: 15, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.coral.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.star, color: AppColors.coral, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '후원자 뱃지와 전용 기능이 활성화됩니다.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.coral,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('후원자로 전환'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && context.mounted) {
+      try {
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(user.id)
+            .update({
+          FirestoreUserKeys.role: UserType.donor.name,
+          FirestoreUserKeys.type: UserType.donor.name,
+        });
+        // 현재 유저 정보 갱신
+        await AuthRepository.instance.fetchUserFromFirestore(user.id);
+        await _refreshUser();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.celebration, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text('축하합니다! 이제 WITH의 천사(Angel)가 되셨습니다. ✨'),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.coral,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('역할 전환에 실패했습니다. 다시 시도해 주세요.')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showRoleChangeDialog(BuildContext context, UserModel user, UserType newRole) async {
+    final roleName = newRole.label;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$roleName로 전환'),
+        content: Text('정말 $roleName 역할로 전환하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: _getRoleColor(newRole),
+            ),
+            child: const Text('전환'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && context.mounted) {
+      try {
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(user.id)
+            .update({
+          FirestoreUserKeys.role: newRole.name,
+          FirestoreUserKeys.type: newRole.name,
+        });
+        // 현재 유저 정보 갱신
+        await AuthRepository.instance.fetchUserFromFirestore(user.id);
+        await _refreshUser();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$roleName 역할로 전환되었습니다.')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('역할 전환에 실패했습니다. 다시 시도해 주세요.')),
+          );
+        }
+      }
+    }
+  }
+
   /// 나의 후원 내역 — Firestore donations에서 userId 일치하는 문서 스트림으로 표시
   Widget _buildMyDonationsSection(BuildContext context, String userId) {
     return Column(
@@ -502,8 +885,8 @@ class MyPageScreen extends StatelessWidget {
         context,
         title: '로그인이 필요합니다',
         content: '후원 신청을 하시려면 로그인해 주세요.',
-        onLoginTap: onLoginTap,
-        onSignupTap: onSignupTap,
+        onLoginTap: _handleLoginTap,
+        onSignupTap: _handleSignupTap,
       );
       return;
     }
@@ -663,16 +1046,16 @@ class _DonationApplyTile extends StatelessWidget {
 
 /// 마이페이지 하단 [로그아웃] 버튼. 클릭 시 확인 후 AuthRepository.logout() → 메인(비로그인) 전환.
 class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({this.onLogout});
+  const _LogoutButton({required this.onLogout});
 
-  final VoidCallback? onLogout;
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
-        onPressed: () => _handleLogout(context),
+        onPressed: onLogout,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.textSecondary,
           side: BorderSide(color: AppColors.textSecondary.withValues(alpha: 0.5)),
@@ -682,30 +1065,6 @@ class _LogoutButton extends StatelessWidget {
         child: const Text('로그아웃'),
       ),
     );
-  }
-
-  Future<void> _handleLogout(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('로그아웃 하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('로그아웃'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !context.mounted) return;
-    await AuthRepository.instance.logout();
-    if (!context.mounted) return;
-    onLogout?.call();
   }
 }
 

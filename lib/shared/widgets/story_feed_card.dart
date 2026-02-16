@@ -3,10 +3,12 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
+import '../../core/services/admin_service.dart' show showDeletePostConfirmDialog, deletePost;
 import '../../features/post/post_detail_screen.dart';
 
 class StoryFeedCard extends StatelessWidget {
@@ -21,6 +23,9 @@ class StoryFeedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = AuthRepository.instance.currentUser;
+    final patientId = data[FirestorePostKeys.patientId]?.toString() ?? '';
+    final isOwner = user != null && user.id == patientId;
     final patientName = data[FirestorePostKeys.patientName]?.toString() ?? '-';
     final title = data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
     final content = data[FirestorePostKeys.content]?.toString() ?? '';
@@ -77,6 +82,21 @@ class StoryFeedCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (isOwner) ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => _showPostMenu(context, postId, data),
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.more_vert,
+                          size: 20,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -303,6 +323,57 @@ class StoryFeedCard extends StatelessWidget {
         child: Icon(Icons.image_outlined, size: 48, color: AppColors.textSecondary),
       ),
     );
+  }
+
+  void _showPostMenu(BuildContext context, String postId, Map<String, dynamic> data) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('게시물 삭제'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _confirmDeletePost(context, postId);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('수정하기'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('수정 기능은 준비 중입니다.')),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeletePost(BuildContext context, String postId) async {
+    final confirm = await showDeletePostConfirmDialog(context);
+    if (confirm != true || !context.mounted) return;
+    final ok = await deletePost(postId);
+    if (!context.mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('게시물이 삭제되었습니다.')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제에 실패했습니다. 다시 시도해 주세요.')),
+      );
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import '../../core/auth/user_model.dart';
 import '../../core/constants/app_colors.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../post/post_upload_screen.dart';
+import 'patient_my_content_screen.dart';
 import 'thank_you_post_list_screen.dart';
 
 class PostCreateChoiceScreen extends StatelessWidget {
@@ -17,6 +18,22 @@ class PostCreateChoiceScreen extends StatelessWidget {
     final user = AuthRepository.instance.currentUser;
     final isPatient = user?.type == UserType.patient;
     final isAdmin = user?.type == UserType.admin || user?.isAdmin == true;
+    
+    // patient 또는 admin만 업로드 가능
+    if (user == null || (!isPatient && !isAdmin)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('환자 계정 또는 관리자 계정으로 로그인 후 이용할 수 있습니다.'),
+          ),
+        );
+        Navigator.of(context).pop();
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -60,6 +77,20 @@ class PostCreateChoiceScreen extends StatelessWidget {
                   );
                 },
               ),
+              if (isPatient) ...[
+                const SizedBox(height: 16),
+                _ChoiceCard(
+                  icon: Icons.dashboard_outlined,
+                  iconBg: const Color(0xFF0D1B2A).withValues(alpha: 0.1),
+                  title: '내 게시물 관리(현황)',
+                  subtitle: '작성한 투병 기록과 감사 편지를 확인하고 관리합니다.',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PatientMyContentScreen()),
+                    );
+                  },
+                ),
+              ],
               if (isAdmin) ...[
                 const SizedBox(height: 32),
                 OutlinedButton.icon(

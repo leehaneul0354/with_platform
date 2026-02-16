@@ -14,11 +14,13 @@ class CommentSection extends StatefulWidget {
     required this.postId,
     required this.postType,
     required this.patientId,
+    this.postOwnerId, // 게시물 작성자 ID (댓글 삭제 권한용)
   });
 
   final String postId;
   final String postType; // 'post' 또는 'thank_you'
   final String patientId; // 게시물 작성자(수혜자) ID
+  final String? postOwnerId; // 게시물 작성자 ID (댓글 삭제 권한용)
 
   @override
   State<CommentSection> createState() => _CommentSectionState();
@@ -206,6 +208,7 @@ class _CommentSectionState extends State<CommentSection> {
                   timestamp: timestamp,
                   postId: widget.postId,
                   postType: widget.postType,
+                  postOwnerId: widget.postOwnerId,
                 );
               },
             );
@@ -226,6 +229,7 @@ class _CommentItem extends StatelessWidget {
     required this.timestamp,
     required this.postId,
     required this.postType,
+    this.postOwnerId,
   });
 
   final String commentId;
@@ -236,6 +240,7 @@ class _CommentItem extends StatelessWidget {
   final Timestamp? timestamp;
   final String postId;
   final String postType;
+  final String? postOwnerId; // 게시물 작성자 ID
 
   String _formatTimestamp(Timestamp? ts) {
     if (ts == null) return '';
@@ -253,7 +258,12 @@ class _CommentItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = AuthRepository.instance.currentUser;
-    final canDelete = user != null && (user.id == userId || user.isAdmin);
+    // 댓글 작성자 본인 또는 관리자 또는 게시물 작성자 본인일 경우 삭제 가능
+    final canDelete = user != null && (
+      user.id == userId || 
+      user.isAdmin || 
+      (postOwnerId != null && user.id == postOwnerId)
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

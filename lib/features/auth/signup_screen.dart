@@ -45,7 +45,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   int _step = 0;
-  UserType _selectedType = UserType.donor;
+  UserType? _selectedType;
   final _idController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
@@ -161,7 +161,7 @@ class _SignupScreenState extends State<SignupScreen> {
         id: id,
         password: password,
         nickname: id,
-        type: _selectedType,
+        type: _selectedType ?? UserType.viewer,
         birthDate: birthDateIso,
       );
       await AuthRepository.instance.signUp(user);
@@ -209,7 +209,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  /// Step 1: 위드에서 어떤 서비스를 이용하고 싶으세요? / 후원자·환자 선택
+  /// Step 1: 위드에서 어떤 서비스를 이용하고 싶으세요? / 3가지 역할 선택
   Widget _buildStep1() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -230,7 +230,7 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            '원하는 회원가입 유형을 선택하세요. 후원자로 가입 후에도 환자로 전환이 가능합니다.',
+            '원하는 회원가입 유형을 선택하세요. 나중에 역할을 변경할 수 있습니다.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -239,24 +239,51 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          _TypeButton(
-            firstLine: '환자에게 후원하고 싶다면',
-            secondLine: '후원자로 가입 →',
-            onTap: () {
-              setState(() => _selectedType = UserType.donor);
-              setState(() => _step = 1);
-            },
+          _RoleCard(
+            role: UserType.viewer,
+            title: '일반 회원',
+            description: '플랫폼을 둘러보고 응원합니다.',
+            icon: Icons.visibility_outlined,
+            isSelected: _selectedType == UserType.viewer,
+            onTap: () => setState(() => _selectedType = UserType.viewer),
           ),
           const SizedBox(height: 12),
-          _TypeButton(
-            firstLine: '투병일기를 기록하고 싶다면',
-            secondLine: '환자로 가입 →',
-            onTap: () {
-              setState(() => _selectedType = UserType.patient);
-              setState(() => _step = 1);
-            },
+          _RoleCard(
+            role: UserType.donor,
+            title: '후원자',
+            description: '환자분들에게 실질적인 도움을 드립니다.',
+            icon: Icons.favorite_outline,
+            isSelected: _selectedType == UserType.donor,
+            onTap: () => setState(() => _selectedType = UserType.donor),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 12),
+          _RoleCard(
+            role: UserType.patient,
+            title: '환자',
+            description: '치료를 위해 도움이 필요한 사연을 올립니다.',
+            icon: Icons.medical_services_outlined,
+            isSelected: _selectedType == UserType.patient,
+            onTap: () => setState(() => _selectedType = UserType.patient),
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _selectedType == null
+                  ? null
+                  : () => setState(() => _step = 1),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.buttonDark,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                disabledBackgroundColor: AppColors.inactiveBackground,
+              ),
+              child: const Text('다음 단계'),
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -440,54 +467,122 @@ class _SignupPasswordHint extends StatelessWidget {
   }
 }
 
-/// 유형 선택 버튼: 두 줄 텍스트 + 오른쪽 화살표 (연한 회색, 라운드)
-class _TypeButton extends StatelessWidget {
-  const _TypeButton({
-    required this.firstLine,
-    required this.secondLine,
+/// 역할 선택 카드: 3가지 역할 중 하나 선택 (브랜드 컬러 테두리 강조)
+class _RoleCard extends StatelessWidget {
+  const _RoleCard({
+    required this.role,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.isSelected,
     required this.onTap,
   });
 
-  final String firstLine;
-  final String secondLine;
+  final UserType role;
+  final String title;
+  final String description;
+  final IconData icon;
+  final bool isSelected;
   final VoidCallback onTap;
+
+  Color get _borderColor {
+    if (!isSelected) return AppColors.inactiveBackground;
+    switch (role) {
+      case UserType.viewer:
+        return AppColors.textSecondary;
+      case UserType.donor:
+        return AppColors.coral;
+      case UserType.patient:
+        return AppColors.yellow;
+      case UserType.admin:
+        return AppColors.textSecondary;
+    }
+  }
+
+  Color get _backgroundColor {
+    if (!isSelected) return Colors.white;
+    switch (role) {
+      case UserType.viewer:
+        return AppColors.inactiveBackground.withValues(alpha: 0.3);
+      case UserType.donor:
+        return AppColors.coral.withValues(alpha: 0.1);
+      case UserType.patient:
+        return AppColors.yellow.withValues(alpha: 0.1);
+      case UserType.admin:
+        return AppColors.inactiveBackground.withValues(alpha: 0.3);
+    }
+  }
+
+  Color get _iconColor {
+    switch (role) {
+      case UserType.viewer:
+        return AppColors.textSecondary;
+      case UserType.donor:
+        return AppColors.coral;
+      case UserType.patient:
+        return AppColors.yellow;
+      case UserType.admin:
+        return AppColors.textSecondary;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.inactiveBackground,
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: _backgroundColor,
+            border: Border.all(
+              color: _borderColor,
+              width: isSelected ? 2.5 : 1,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Row(
             children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: _iconColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, size: 28, color: _iconColor),
+              ),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      firstLine,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
+                      title,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      secondLine,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        height: 1.3,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+              if (isSelected)
+                Icon(Icons.check_circle, color: _iconColor, size: 24)
+              else
+                Icon(Icons.radio_button_unchecked, color: AppColors.inactiveBackground, size: 24),
             ],
           ),
         ),

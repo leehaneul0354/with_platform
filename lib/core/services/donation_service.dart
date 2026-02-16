@@ -4,6 +4,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../auth/user_model.dart';
 import '../constants/firestore_keys.dart';
 
 /// platform_stats 단일 문서 ID (전역 통계)
@@ -183,13 +184,19 @@ Future<bool> processPaymentWithWithPay({
         debugPrint('[WITHPAY] : 사용자 문서 없음');
         return false;
       }
-      final current = (userSnap.data()?[FirestoreUserKeys.withPayBalance] is int)
-          ? (userSnap.data()![FirestoreUserKeys.withPayBalance] as int)
+      final userData = userSnap.data()!;
+      final current = (userData[FirestoreUserKeys.withPayBalance] is int)
+          ? (userData[FirestoreUserKeys.withPayBalance] as int)
           : 0;
       if (current < amount) {
         debugPrint('[WITHPAY] : 잔액 부족 — current=$current, need=$amount');
         return false;
       }
+      
+      // 권한 승격 로직: viewer -> donor 자동 전환
+      final currentRole = userData[FirestoreUserKeys.role]?.toString() ?? 
+                         userData[FirestoreUserKeys.type]?.toString() ?? 'viewer';
+      final shouldPromoteToDonor = currentRole == UserType.viewer.name;
       final postSnap = await tx.get(postRef);
       final postData = postSnap.exists ? (postSnap.data() ?? {}) : {};
       final currentAmount = (postData[FirestorePostKeys.currentAmount] is int)
@@ -202,9 +209,16 @@ Future<bool> processPaymentWithWithPay({
               : 0;
       final newAmount = currentAmount + amount;
 
-      tx.update(userRef, {
+      // 잔액 차감 및 권한 승격 (viewer -> donor)
+      final userUpdates = <String, dynamic>{
         FirestoreUserKeys.withPayBalance: FieldValue.increment(-amount),
-      });
+      };
+      if (shouldPromoteToDonor) {
+        userUpdates[FirestoreUserKeys.role] = UserType.donor.name;
+        userUpdates[FirestoreUserKeys.type] = UserType.donor.name;
+        debugPrint('[WITHPAY] : 권한 승격 — viewer -> donor (userId=$userId)');
+      }
+      tx.update(userRef, userUpdates);
       tx.set(donationRef, {
         DonationKeys.userId: userId,
         DonationKeys.amount: amount,
@@ -229,6 +243,21 @@ Future<bool> processPaymentWithWithPay({
 
     if (success) {
       debugPrint('[WITHPAY] : 후원 처리 완료 — $amount 원 차감');
+      // 권한 승격 후 현재 유저 정보 갱신
+      try {
+        final currentUser = await _firestore.collection(FirestoreCollections.users).doc(userId).get();
+        if (currentUser.exists) {
+          final userData = currentUser.data()!;
+          final newRole = userData[FirestoreUserKeys.role]?.toString() ?? 
+                         userData[FirestoreUserKeys.type]?.toString();
+          if (newRole == UserType.donor.name) {
+            // AuthRepository의 현재 유저 정보도 갱신 (선택적)
+            debugPrint('[WITHPAY] : 권한 승격 완료 — donor로 전환됨');
+          }
+        }
+      } catch (e) {
+        debugPrint('[WITHPAY] : 권한 승격 후 유저 정보 갱신 실패 — $e');
+      }
     }
     return success;
   } catch (e, st) {

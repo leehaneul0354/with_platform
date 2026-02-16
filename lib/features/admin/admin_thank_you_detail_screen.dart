@@ -311,6 +311,7 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
               postId: widget.docId,
               postType: 'thank_you',
               patientId: widget.data[ThankYouPostKeys.patientId]?.toString() ?? '',
+              postOwnerId: widget.data[ThankYouPostKeys.patientId]?.toString(),
             ),
             const SizedBox(height: 24),
           ],

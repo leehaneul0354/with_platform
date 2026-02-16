@@ -63,6 +63,7 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = AuthRepository.instance.currentUser;
     final data = widget.data;
     final title = data[ThankYouPostKeys.title]?.toString() ?? '(제목 없음)';
     final content = data[ThankYouPostKeys.content]?.toString() ?? '';
@@ -71,6 +72,8 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
         ? (data[ThankYouPostKeys.imageUrls] as List).cast<String>()
         : <String>[];
     final postId = data[ThankYouPostKeys.postId]?.toString(); // thank_you_posts 문서 ID
+    final patientId = data[ThankYouPostKeys.patientId]?.toString() ?? '';
+    final isOwner = user != null && user.id == patientId;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -86,6 +89,13 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
         backgroundColor: AppColors.yellow,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        actions: [
+          if (isOwner || _isAdmin)
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: () => _showPostMenu(context, postId),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -155,55 +165,61 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
             // 좋아요 버튼
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: StreamBuilder<bool>(
-                stream: isLikedStream(
-                  postId: widget.todayDocId ?? postId ?? '',
-                  postType: 'thank_you',
-                  userId: AuthRepository.instance.currentUser?.id ?? '',
-                ),
-                builder: (context, likedSnapshot) {
-                  final isLiked = likedSnapshot.data ?? false;
-                  return StreamBuilder<int>(
-                    stream: likeCountStream(
-                      postId: widget.todayDocId ?? postId ?? '',
+              child: Builder(
+                builder: (context) {
+                  final targetPostId = widget.todayDocId ?? postId ?? '';
+                  if (targetPostId.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return StreamBuilder<bool>(
+                    stream: isLikedStream(
+                      postId: targetPostId,
                       postType: 'thank_you',
+                      userId: AuthRepository.instance.currentUser?.id ?? '',
                     ),
-                    builder: (context, countSnapshot) {
-                      final likeCount = countSnapshot.data ?? 0;
-                      return Row(
-                        children: [
-                          IconButton(
-                            onPressed: () async {
-                              final user = AuthRepository.instance.currentUser;
-                              if (user == null) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('로그인 후 좋아요를 누를 수 있습니다.')),
-                                );
-                                return;
-                              }
-                              final targetPostId = widget.todayDocId ?? postId ?? '';
-                              if (targetPostId.isEmpty) return;
-                              await toggleLike(
-                                postId: targetPostId,
-                                postType: 'thank_you',
-                                userId: user.id,
-                              );
-                            },
-                            icon: Icon(
-                              isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked ? Colors.red : AppColors.textSecondary,
-                            ),
-                          ),
-                          Text(
-                            '$likeCount',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
+                    builder: (context, likedSnapshot) {
+                      final isLiked = likedSnapshot.data ?? false;
+                      return StreamBuilder<int>(
+                        stream: likeCountStream(
+                          postId: targetPostId,
+                          postType: 'thank_you',
+                        ),
+                        builder: (context, countSnapshot) {
+                          final likeCount = countSnapshot.data ?? 0;
+                          return Row(
+                            children: [
+                              IconButton(
+                                onPressed: () async {
+                                  final user = AuthRepository.instance.currentUser;
+                                  if (user == null) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('로그인 후 좋아요를 누를 수 있습니다.')),
+                                    );
+                                    return;
+                                  }
+                                  await toggleLike(
+                                    postId: targetPostId,
+                                    postType: 'thank_you',
+                                    userId: user.id,
+                                  );
+                                },
+                                icon: Icon(
+                                  isLiked ? Icons.favorite : Icons.favorite_border,
+                                  color: isLiked ? Colors.red : AppColors.textSecondary,
+                                ),
+                              ),
+                              Text(
+                                '$likeCount',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -214,9 +230,10 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
             // 댓글 섹션
             if ((widget.todayDocId ?? postId) != null)
               CommentSection(
-                postId: widget.todayDocId ?? postId!,
+                postId: widget.todayDocId ?? (postId ?? ''),
                 postType: 'thank_you',
                 patientId: data[ThankYouPostKeys.patientId]?.toString() ?? '',
+                postOwnerId: patientId,
               ),
             const SizedBox(height: 24),
           ],
@@ -302,5 +319,71 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
         child: Icon(Icons.mail_outline, size: 48, color: AppColors.textSecondary),
       ),
     );
+  }
+
+  void _showPostMenu(BuildContext context, String? postId) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('게시물 삭제'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _confirmDeletePost(context, postId);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('수정하기'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('수정 기능은 준비 중입니다.')),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeletePost(BuildContext context, String? postId) async {
+    final confirm = await showDeleteConfirmDialog(
+      context,
+      title: '감사 편지 삭제',
+      content: '이 감사 편지를 삭제하시겠습니까?',
+    );
+    if (confirm != true || !context.mounted) return;
+    
+    if (postId != null) {
+      final ok = await deleteThankYouPost(postId);
+      if (!mounted) return;
+      if (ok) {
+        // today_thank_you도 함께 삭제 시도
+        if (widget.todayDocId != null) {
+          await deleteDocument(FirestoreCollections.todayThankYou, widget.todayDocId!);
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('감사 편지가 삭제되었습니다.')),
+        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('삭제에 실패했습니다. 다시 시도해 주세요.')),
+        );
+      }
+    }
   }
 }
