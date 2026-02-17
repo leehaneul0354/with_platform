@@ -8,6 +8,7 @@ import '../constants/test_accounts.dart';
 import '../constants/assets.dart';
 import '../util/birth_date_util.dart';
 import '../services/with_pay_service.dart';
+import '../../shared/widgets/approved_posts_feed.dart';
 import 'user_model.dart';
 
 class AuthRepository extends ChangeNotifier {
@@ -299,10 +300,22 @@ class AuthRepository extends ChangeNotifier {
     }
     
     final admin = TestAccounts.resolveAdmin(id, password);
-    if (admin != null) { await setCurrentUser(admin); return admin; }
+    if (admin != null) { 
+      await setCurrentUser(admin);
+      // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화 (스트림 구독 준비)
+      initializeWithPayService();
+      initializeApprovedPostsStream();
+      return admin; 
+    }
 
     final testUser = TestAccounts.resolveTestUser(id, password);
-    if (testUser != null) { await setCurrentUser(testUser); return testUser; }
+    if (testUser != null) { 
+      await setCurrentUser(testUser);
+      // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화 (스트림 구독 준비)
+      initializeWithPayService();
+      initializeApprovedPostsStream();
+      return testUser; 
+    }
 
     final doc = await _firestore.collection(FirestoreCollections.users).doc(id).get();
     final data = doc.data();
@@ -310,6 +323,9 @@ class AuthRepository extends ChangeNotifier {
       final user = UserModel.fromJson(data);
       if (user.password == password) {
         await setCurrentUser(user);
+        // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화 (스트림 구독 준비)
+        initializeWithPayService();
+        initializeApprovedPostsStream();
         return user;
       }
     }
@@ -372,9 +388,10 @@ class AuthRepository extends ChangeNotifier {
     // 3단계: 메모리 캐시 재확인 및 강제 초기화 (이중 안전장치)
     _currentUser = null;
     
-    // 3-1단계: WITHPAY 스트림 캐시 완전 삭제 (세션 부활 방지)
+    // 3-1단계: 모든 Firestore 스트림 캐시 완전 삭제 (세션 부활 방지 및 Firestore 스트림 충돌 방지)
     clearWithPayStreamCache();
-    debugPrint('🚩 [LOG] WITHPAY 스트림 캐시 완전 삭제 완료');
+    clearApprovedPostsStreamCache();
+    debugPrint('🚩 [LOG] 모든 Firestore 스트림 캐시 완전 삭제 완료 (Firestore 스트림 충돌 방지)');
     
     // 4단계: notifyListeners() 단 한 번만 호출 (모든 데이터 삭제 후)
     notifyListeners();

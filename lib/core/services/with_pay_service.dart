@@ -11,10 +11,24 @@ final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 /// userId별 잔액 스트림 캐시 — 동일 사용자에 대해 한 번만 구독 (중복 로그/구독 방지)
 final Map<String, Stream<DocumentSnapshot<Map<String, dynamic>>>> _balanceStreamCache = {};
 
+/// 서비스 초기화 플래그 (중복 구독 방지)
+bool _isInitialized = false;
+
+/// WITH Pay 서비스 초기화 (앱 시작 시 한 번만 호출)
+void initializeWithPayService() {
+  if (_isInitialized) {
+    debugPrint('[WITHPAY] : 서비스 이미 초기화됨 - 중복 초기화 방지');
+    return;
+  }
+  _isInitialized = true;
+  debugPrint('[WITHPAY] : 서비스 초기화 완료');
+}
+
 /// WITH Pay 스트림 캐시 클리어 (로그아웃 시 호출)
 void clearWithPayStreamCache() {
   _balanceStreamCache.clear();
-  debugPrint('[WITHPAY] : 잔액 스트림 캐시 완전 삭제됨');
+  _isInitialized = false; // 초기화 플래그도 리셋
+  debugPrint('[WITHPAY] : 잔액 스트림 캐시 완전 삭제됨 - 초기화 플래그 리셋');
 }
 
 /// 사용자 WITH Pay 잔액 한 번 읽기 (없으면 0)
@@ -36,19 +50,33 @@ Future<int> getWithPayBalance(String userId) async {
 /// 사용자 잔액 실시간 스트림 (마이페이지·후원 화면 반영용). userId당 1회만 구독·로그.
 /// 로그아웃 후에는 스트림을 반환하지 않음 (세션 부활 방지)
 Stream<DocumentSnapshot<Map<String, dynamic>>> withPayBalanceStream(String userId) {
+  // 서비스가 초기화되지 않았으면 빈 스트림 반환 (중복 구독 방지)
+  if (!_isInitialized) {
+    debugPrint('[WITHPAY] : 잔액 스트림 차단 - 서비스 미초기화');
+    return const Stream.empty();
+  }
+  
   // userId가 null이거나 빈 문자열이면 빈 스트림 반환
   if (userId.isEmpty) {
     debugPrint('[WITHPAY] : 잔액 스트림 차단 - userId가 비어있음');
     return const Stream.empty();
   }
   
-  return _balanceStreamCache.putIfAbsent(userId, () {
-    debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$userId (1회)');
-    return _firestore
-        .collection(FirestoreCollections.users)
-        .doc(userId)
-        .snapshots();
-  });
+  // 캐시에 이미 있으면 기존 스트림 반환 (중복 구독 방지)
+  if (_balanceStreamCache.containsKey(userId)) {
+    debugPrint('[WITHPAY] : 잔액 스트림 캐시 사용 — userId=$userId');
+    return _balanceStreamCache[userId]!;
+  }
+  
+  // 새 스트림 생성 및 캐시에 저장
+  final stream = _firestore
+      .collection(FirestoreCollections.users)
+      .doc(userId)
+      .snapshots();
+  
+  _balanceStreamCache[userId] = stream;
+  debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$userId (새 구독)');
+  return stream;
 }
 
 /// 스냅샷에서 잔액 추출 (없으면 0)

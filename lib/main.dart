@@ -4,9 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'package:with_platform/core/auth/auth_repository.dart';
 import 'package:with_platform/core/services/donation_service.dart';
+import 'package:with_platform/core/services/with_pay_service.dart';
 import 'package:with_platform/features/splash/splash_screen.dart';
 import 'package:with_platform/core/navigation/app_route_observer.dart';
 import 'package:with_platform/shared/widgets/app_error_page.dart';
+import 'package:with_platform/shared/widgets/approved_posts_feed.dart';
 import 'package:with_platform/features/auth/login_screen.dart';
 import 'package:with_platform/features/main/main_screen.dart';
 
@@ -17,11 +19,21 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Firestore 설정: 웹 환경에서 캐시 충돌 방지
+  // persistenceEnabled: false로 설정하여 웹 환경에서 캐시 충돌 방지
   FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: false,
+    persistenceEnabled: false, // 웹 환경에서 캐시 충돌 방지
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
+  
+  debugPrint('[SYSTEM] : Firestore 설정 완료 - persistenceEnabled: false (웹 환경 캐시 충돌 방지)');
 
+  // WITH Pay 서비스 초기화 (스트림 중복 구독 방지)
+  initializeWithPayService();
+  
+  // 피드 스트림 초기화 (스트림 중복 구독 방지)
+  initializeApprovedPostsStream();
+  
   await AuthRepository.instance.loadCurrentUser();
 
   ensurePlatformStats().then((_) {

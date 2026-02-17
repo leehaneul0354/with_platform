@@ -12,9 +12,34 @@ import 'story_feed_card.dart';
 
 Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedApprovedPostsStream;
 bool _approvedPostsStreamLogDone = false;
+bool _approvedPostsStreamInitialized = false;
+
+/// 피드 스트림 초기화 (앱 시작 시 한 번만 호출)
+void initializeApprovedPostsStream() {
+  if (_approvedPostsStreamInitialized) {
+    debugPrint('[SYSTEM] : 피드 스트림 이미 초기화됨 - 중복 초기화 방지');
+    return;
+  }
+  _approvedPostsStreamInitialized = true;
+  debugPrint('[SYSTEM] : 피드 스트림 초기화 완료');
+}
+
+/// 피드 스트림 캐시 클리어 (로그아웃 시 호출)
+void clearApprovedPostsStreamCache() {
+  _cachedApprovedPostsStream = null;
+  _approvedPostsStreamLogDone = false;
+  _approvedPostsStreamInitialized = false;
+  debugPrint('[SYSTEM] : 피드 스트림 캐시 완전 삭제됨');
+}
 
 /// 승인된 피드용 Firestore 스트림 단일 인스턴스 (중복 구독 방지)
 Stream<QuerySnapshot<Map<String, dynamic>>> get _approvedPostsStream {
+  // 초기화되지 않았으면 빈 스트림 반환 (중복 구독 방지)
+  if (!_approvedPostsStreamInitialized) {
+    debugPrint('[SYSTEM] : 피드 스트림 미초기화 - 빈 스트림 반환');
+    return const Stream.empty();
+  }
+  
   _cachedApprovedPostsStream ??= FirebaseFirestore.instance
       .collection(FirestoreCollections.posts)
       .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.approved)

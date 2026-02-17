@@ -66,12 +66,18 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
         }
       }
       
+      // 스트림 구독 순차 지연: 피드 데이터 → 잔액 스트림 순서로 로드 (Firestore 충돌 방지)
+      // 1단계: 피드 데이터 스트림 준비 (300ms 지연)
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       setState(() => _phaseFeedReady = true);
+      debugPrint('🚩 [LOG] MainScreen - 피드 데이터 스트림 준비 완료');
+      
+      // 2단계: 통계/잔액 스트림 준비 (추가 300ms 지연 - 총 600ms)
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       setState(() => _phaseStatsReady = true);
+      debugPrint('🚩 [LOG] MainScreen - 통계/잔액 스트림 준비 완료');
     });
   }
 
