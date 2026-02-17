@@ -15,13 +15,22 @@ bool _approvedPostsStreamLogDone = false;
 bool _approvedPostsStreamInitialized = false;
 
 /// 피드 스트림 초기화 (앱 시작 시 한 번만 호출)
-void initializeApprovedPostsStream() {
-  if (_approvedPostsStreamInitialized) {
+/// 강제 초기화가 필요한 경우 force=true로 호출 가능
+void initializeApprovedPostsStream({bool force = false}) {
+  if (_approvedPostsStreamInitialized && !force) {
     debugPrint('[SYSTEM] : 피드 스트림 이미 초기화됨 - 중복 초기화 방지');
     return;
   }
+  
+  // 강제 초기화 시 기존 캐시 클리어
+  if (force) {
+    _cachedApprovedPostsStream = null;
+    _approvedPostsStreamLogDone = false;
+    debugPrint('[SYSTEM] : 피드 스트림 강제 초기화 - 기존 캐시 클리어');
+  }
+  
   _approvedPostsStreamInitialized = true;
-  debugPrint('[SYSTEM] : 피드 스트림 초기화 완료');
+  debugPrint('[SYSTEM] : 피드 스트림 초기화 완료 (force: $force)');
 }
 
 /// 피드 스트림 캐시 클리어 (로그아웃 시 호출)
@@ -33,18 +42,29 @@ void clearApprovedPostsStreamCache() {
 }
 
 /// 승인된 피드용 Firestore 스트림 단일 인스턴스 (중복 구독 방지)
+/// 초기화되지 않았을 경우 자동으로 초기화 시도
 Stream<QuerySnapshot<Map<String, dynamic>>> get _approvedPostsStream {
-  // 초기화되지 않았으면 빈 스트림 반환 (중복 구독 방지)
+  // 초기화되지 않았으면 자동 초기화 시도
   if (!_approvedPostsStreamInitialized) {
-    debugPrint('[SYSTEM] : 피드 스트림 미초기화 - 빈 스트림 반환');
-    return const Stream.empty();
+    debugPrint('[SYSTEM] : 피드 스트림 미초기화 - 자동 초기화 시도');
+    initializeApprovedPostsStream();
   }
   
+  // 스트림이 없거나 null이면 새로 생성
   _cachedApprovedPostsStream ??= FirebaseFirestore.instance
       .collection(FirestoreCollections.posts)
       .where(FirestorePostKeys.status, isEqualTo: FirestorePostKeys.approved)
       .orderBy(FirestorePostKeys.createdAt, descending: true)
-      .snapshots();
+      .snapshots()
+      .handleError((error) {
+        debugPrint('[SYSTEM] : 피드 스트림 에러 발생 - $error');
+        // 에러 발생 시 스트림을 null로 리셋하여 재시도 가능하게 함
+        _cachedApprovedPostsStream = null;
+        _approvedPostsStreamLogDone = false;
+        // 초기화 플래그는 유지 (재시도 시 다시 초기화 가능하도록)
+        return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+      });
+  
   if (!_approvedPostsStreamLogDone) {
     _approvedPostsStreamLogDone = true;
     debugPrint('[SYSTEM] : 피드 데이터 로드 중... (캐시 스트림 1회 연결)');
@@ -53,24 +73,51 @@ Stream<QuerySnapshot<Map<String, dynamic>>> get _approvedPostsStream {
 }
 
 /// 승인된 사연만 최신순으로 표시하는 피드. 빈 상태 시 안내 문구, 이미지 로딩 인디케이터 포함.
-class ApprovedPostsFeed extends StatelessWidget {
+class ApprovedPostsFeed extends StatefulWidget {
   const ApprovedPostsFeed({super.key});
+
+  @override
+  State<ApprovedPostsFeed> createState() => _ApprovedPostsFeedState();
+}
+
+class _ApprovedPostsFeedState extends State<ApprovedPostsFeed> {
+  int _retryKey = 0; // 재시도 시 스트림 재구독을 위한 키
+
+  void _retry() {
+    setState(() {
+      _retryKey++;
+      // 스트림 캐시 리셋 및 재초기화
+      clearApprovedPostsStreamCache();
+      initializeApprovedPostsStream(force: true);
+      debugPrint('[SYSTEM] : 피드 스트림 재시도 버튼 클릭 - 키: $_retryKey');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
+      key: ValueKey(_retryKey), // 재시도 시 스트림 재구독
       stream: _approvedPostsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           debugPrint('[SYSTEM] : 피드 스트림 에러: ${snapshot.error}');
+          // 에러 발생 시 재시도 버튼 제공
           return Padding(
             padding: const EdgeInsets.all(24),
-            child: Center(
-              child: Text(
-                '목록을 불러오는 중 오류가 발생했습니다.',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                textAlign: TextAlign.center,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '목록을 불러오는 중 오류가 발생했습니다.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _retry,
+                  child: const Text('다시 시도'),
+                ),
+              ],
             ),
           );
         }
@@ -112,12 +159,30 @@ class ApprovedPostsFeed extends StatelessWidget {
 }
 
 /// CustomScrollView 내부에서 사용. orderBy(createdAt, descending: true) 적용, SliverList로 빌드해 상위 스크롤과 일체화.
-class ApprovedPostsFeedSliver extends StatelessWidget {
+class ApprovedPostsFeedSliver extends StatefulWidget {
   const ApprovedPostsFeedSliver({super.key});
+
+  @override
+  State<ApprovedPostsFeedSliver> createState() => _ApprovedPostsFeedSliverState();
+}
+
+class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
+  int _retryKey = 0; // 재시도 시 스트림 재구독을 위한 키
+
+  void _retry() {
+    setState(() {
+      _retryKey++;
+      // 스트림 캐시 리셋 및 재초기화
+      clearApprovedPostsStreamCache();
+      initializeApprovedPostsStream(force: true);
+      debugPrint('[SYSTEM] : 피드 스트림(Sliver) 재시도 버튼 클릭 - 키: $_retryKey');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
+      key: ValueKey(_retryKey), // 재시도 시 스트림 재구독
       stream: _approvedPostsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -125,12 +190,20 @@ class ApprovedPostsFeedSliver extends StatelessWidget {
           return SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                  '목록을 불러오는 중 오류가 발생했습니다.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                  textAlign: TextAlign.center,
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '목록을 불러오는 중 오류가 발생했습니다.',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _retry,
+                    child: const Text('다시 시도'),
+                  ),
+                ],
               ),
             ),
           );

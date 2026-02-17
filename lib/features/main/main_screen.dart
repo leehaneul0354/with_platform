@@ -66,6 +66,21 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
         }
       }
       
+      // 피드 스트림 초기화 확인 및 강제 초기화 (안정성 강화)
+      try {
+        initializeApprovedPostsStream(force: false);
+        debugPrint('🚩 [LOG] MainScreen - 피드 스트림 초기화 확인 완료');
+      } catch (e) {
+        debugPrint('🚩 [LOG] MainScreen - 피드 스트림 초기화 실패, 재시도: $e');
+        await Future.delayed(const Duration(milliseconds: 200));
+        try {
+          initializeApprovedPostsStream(force: true);
+          debugPrint('🚩 [LOG] MainScreen - 피드 스트림 강제 초기화 완료');
+        } catch (e2) {
+          debugPrint('🚩 [LOG] MainScreen - 피드 스트림 강제 초기화 실패: $e2');
+        }
+      }
+      
       // 스트림 구독 순차 지연: 피드 데이터 → 잔액 스트림 순서로 로드 (Firestore 충돌 방지)
       // 1단계: 피드 데이터 스트림 준비 (300ms 지연)
       await Future.delayed(const Duration(milliseconds: 300));

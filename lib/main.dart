@@ -15,26 +15,59 @@ import 'package:with_platform/features/main/main_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('[SYSTEM] : Firebase 초기화 완료');
+  } catch (e) {
+    debugPrint('[SYSTEM] : Firebase 초기화 실패 - $e');
+    // Firebase 초기화 실패 시에도 앱은 계속 실행 (에러 페이지 표시 가능)
+  }
 
   // Firestore 설정: 웹 환경에서 캐시 충돌 방지
   // persistenceEnabled: false로 설정하여 웹 환경에서 캐시 충돌 방지
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: false, // 웹 환경에서 캐시 충돌 방지
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
-  
-  debugPrint('[SYSTEM] : Firestore 설정 완료 - persistenceEnabled: false (웹 환경 캐시 충돌 방지)');
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: false, // 웹 환경에서 캐시 충돌 방지
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    debugPrint('[SYSTEM] : Firestore 설정 완료 - persistenceEnabled: false (웹 환경 캐시 충돌 방지)');
+  } catch (e) {
+    debugPrint('[SYSTEM] : Firestore 설정 실패 - $e');
+    // 설정 실패 시에도 기본 설정으로 계속 진행
+  }
 
   // WITH Pay 서비스 초기화 (스트림 중복 구독 방지)
-  initializeWithPayService();
+  try {
+    initializeWithPayService();
+    debugPrint('[SYSTEM] : WITH Pay 서비스 초기화 완료');
+  } catch (e) {
+    debugPrint('[SYSTEM] : WITH Pay 서비스 초기화 실패 - $e');
+  }
   
   // 피드 스트림 초기화 (스트림 중복 구독 방지)
-  initializeApprovedPostsStream();
+  try {
+    initializeApprovedPostsStream();
+    debugPrint('[SYSTEM] : 피드 스트림 초기화 완료');
+  } catch (e) {
+    debugPrint('[SYSTEM] : 피드 스트림 초기화 실패 - $e');
+    // 초기화 실패 시 재시도
+    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      initializeApprovedPostsStream();
+      debugPrint('[SYSTEM] : 피드 스트림 초기화 재시도 완료');
+    } catch (e2) {
+      debugPrint('[SYSTEM] : 피드 스트림 초기화 재시도 실패 - $e2');
+    }
+  }
   
-  await AuthRepository.instance.loadCurrentUser();
+  try {
+    await AuthRepository.instance.loadCurrentUser();
+    debugPrint('[SYSTEM] : AuthRepository 사용자 로드 완료');
+  } catch (e) {
+    debugPrint('[SYSTEM] : AuthRepository 사용자 로드 실패 - $e');
+  }
 
   ensurePlatformStats().then((_) {
     debugPrint('[SYSTEM] : platform_stats 초기화 완료');
