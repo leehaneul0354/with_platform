@@ -19,6 +19,7 @@ import '../admin/admin_dashboard_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
 import 'donation_request_screen.dart';
+import 'main_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({
@@ -48,6 +49,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _refreshUser() async {
+    // 로그아웃 중이면 갱신하지 않음 (세션 부활 방지)
+    if (AuthRepository.instance.isLoggingOut) {
+      debugPrint('🚩 [LOG] MyPageScreen._refreshUser 차단됨 - 로그아웃 진행 중');
+      return;
+    }
+    
     final user = AuthRepository.instance.currentUser;
     if (user != null) {
       await AuthRepository.instance.fetchUserFromFirestore(user.id);
@@ -72,6 +79,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _handleLogout() async {
+    debugPrint('🚩 [LOG] 로그아웃 버튼 클릭됨 (MyPageScreen)');
+    
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -89,11 +98,31 @@ class _MyPageScreenState extends State<MyPageScreen> {
         ],
       ),
     );
-    if (confirm != true || !mounted) return;
+    if (confirm != true || !mounted) {
+      debugPrint('🚩 [LOG] 로그아웃 취소됨');
+      return;
+    }
+    
+    debugPrint('🚩 [LOG] 로그아웃 확인됨 - AuthRepository.logout() 호출 시작');
+    
+    // 로그아웃 실행 - 세션 완전히 파괴
     await AuthRepository.instance.logout();
     if (!mounted) return;
+    
+    debugPrint('🚩 [LOG] AuthRepository.logout() 완료 - 네비게이션 시작');
+    
+    // 콜백 호출
     widget.onLogout?.call();
-    if (mounted) setState(() {});
+    
+    // rootNavigator: true를 사용하여 모든 다이얼로그/시트를 포함한 전체 스택을 비우고 MainScreen으로 강제 이동
+    if (mounted) {
+      debugPrint('🚩 [LOG] Navigator.pushAndRemoveUntil 실행 - rootNavigator: true');
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
+      debugPrint('🚩 [LOG] Navigator.pushAndRemoveUntil 완료');
+    }
   }
 
   void _navigateToLogin() {

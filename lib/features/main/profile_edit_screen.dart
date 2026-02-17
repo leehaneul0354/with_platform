@@ -11,6 +11,7 @@ import '../../shared/widgets/with_header.dart';
 import '../../shared/widgets/role_badge.dart';
 import '../../shared/widgets/profile_avatar.dart';
 import '../../shared/widgets/safe_image_asset.dart';
+import 'main_screen.dart';
 
 /// WITH 포인트 컬러 #FFD400
 const Color _kYellow = Color(0xFFFFD400);
@@ -183,6 +184,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   }
 
   Future<void> _logout() async {
+    debugPrint('🚩 [LOG] 로그아웃 버튼 클릭됨 (ProfileEditScreen)');
+    
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -194,11 +197,32 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ],
       ),
     );
-    if (confirm != true || !mounted) return;
+    if (confirm != true || !mounted) {
+      debugPrint('🚩 [LOG] 로그아웃 취소됨');
+      return;
+    }
+    
+    debugPrint('🚩 [LOG] 로그아웃 확인됨 - AuthRepository.logout() 호출 시작');
+    
+    // 로그아웃 실행 - 세션 완전히 파괴
     await AuthRepository.instance.logout();
     if (!mounted) return;
-    Navigator.of(context).pop();
+    
+    debugPrint('🚩 [LOG] AuthRepository.logout() 완료 - 네비게이션 시작');
+    
+    // 콜백 호출
     widget.onLogout?.call();
+    
+    // rootNavigator: true를 사용하여 모든 다이얼로그/시트를 포함한 전체 스택을 비우고 MainScreen으로 강제 이동
+    // Navigator.pop()을 호출하지 않고 바로 pushAndRemoveUntil로 모든 스택을 제거
+    if (mounted) {
+      debugPrint('🚩 [LOG] Navigator.pushAndRemoveUntil 실행 - rootNavigator: true');
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
+      debugPrint('🚩 [LOG] Navigator.pushAndRemoveUntil 완료');
+    }
   }
 
   @override

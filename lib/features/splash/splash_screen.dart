@@ -6,6 +6,7 @@ import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/assets.dart';
 import '../main/main_screen.dart';
+import '../auth/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -40,8 +41,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _initialize() async {
     try {
+      // 로그아웃 중이 아닐 때만 동기화 실행
+      final user = AuthRepository.instance.currentUser;
+      if (user == null) {
+        debugPrint('🚩 [LOG] SplashScreen - 유저가 null이므로 ensureAuthSync 스킵 (자동 로그인 차단)');
+        // 유저가 없어도 MainScreen으로 이동 (비로그인 상태의 메인 화면)
+        debugPrint('🚩 [LOG] SplashScreen - 비로그인 상태의 MainScreen으로 이동');
+        _navigateToMain();
+        return;
+      }
+      
+      // 유저가 있을 때만 동기화 실행
       await AuthRepository.instance.ensureAuthSync();
       if (!mounted) return;
+      
       try {
         await AuthRepository.instance.seedTestAccountsWithBirthDateIfNeeded();
       } catch (_) {}
@@ -49,6 +62,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       _navigateToMain();
     } catch (e) {
       if (!mounted) return;
+      // 에러 발생 시에도 MainScreen으로 이동 (비로그인 상태든 로그인 상태든)
+      debugPrint('🚩 [LOG] SplashScreen - 에러 발생, MainScreen으로 이동');
       _navigateToMain();
     }
   }

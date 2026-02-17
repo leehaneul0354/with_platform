@@ -40,6 +40,41 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
   /// 통신 지연/갱신 중에도 관리자 UI 유지. 로그아웃 시에만 false로 리셋.
   bool _lastKnownAdmin = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // 로그아웃 후 상태 초기화를 위해 user 상태 확인
+    // 주의: ensureAuthSync는 로그아웃 중에는 실행되지 않음 (AuthRepository에서 차단됨)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      
+      // 유저가 null이면 어떤 데이터 로드도 하지 않음 (로그아웃 후 세션 부활 방지)
+      final user = AuthRepository.instance.currentUser;
+      if (user == null) {
+        debugPrint('🚩 [LOG] MainScreen - 유저가 null이므로 모든 데이터 로드 스킵 (세션 부활 방지)');
+        _lastKnownAdmin = false;
+        _bottomIndex = 0;
+        // 유저가 null일 때는 ensureAuthSync를 절대 호출하지 않음
+        // 이렇게 해야 로그아웃 후 SharedPreferences에서 데이터를 다시 읽어오는 것을 방지
+      } else {
+        // 유저가 있을 때만 동기화 실행 (로그아웃 중이 아닐 때만)
+        if (!AuthRepository.instance.isLoggingOut) {
+          await AuthRepository.instance.ensureAuthSync();
+          if (!mounted) return;
+        } else {
+          debugPrint('🚩 [LOG] MainScreen - 로그아웃 진행 중이므로 ensureAuthSync 스킵');
+        }
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      setState(() => _phaseFeedReady = true);
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      setState(() => _phaseStatsReady = true);
+    });
+  }
+
   bool get _isLoggedIn => AuthRepository.instance.currentUser != null;
   String? get _currentNickname => AuthRepository.instance.currentUser?.nickname;
 
@@ -198,22 +233,6 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
   /// 폭포수형 로딩: 유저 확인 → 300ms → 피드 허용 → 300ms → 잔액/후원 현황 허용 (동시 구독 병목 방지)
   bool _phaseFeedReady = false;
   bool _phaseStatsReady = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      await AuthRepository.instance.ensureAuthSync();
-      if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      setState(() => _phaseFeedReady = true);
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      setState(() => _phaseStatsReady = true);
-    });
-  }
 
   @override
   void didChangeDependencies() {
@@ -458,6 +477,26 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    // 로그아웃 후 user가 null인 경우 상태 강제 리셋
+    final currentUser = AuthRepository.instance.currentUser;
+    debugPrint('🚩 [LOG] MainScreen 빌드됨 - 유저 ID: ${currentUser?.id ?? "null"}, 닉네임: ${currentUser?.nickname ?? "null"}');
+    
+    if (currentUser == null) {
+      debugPrint('🚩 [LOG] MainScreen - 유저가 null임. 상태 리셋 필요');
+      // 로그아웃된 상태: 관리자 상태 및 탭 인덱스 리셋
+      if (_lastKnownAdmin || _bottomIndex != 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            debugPrint('🚩 [LOG] MainScreen - 상태 리셋 실행: _lastKnownAdmin=false, _bottomIndex=0');
+            setState(() {
+              _lastKnownAdmin = false;
+              _bottomIndex = 0;
+            });
+          }
+        });
+      }
+    }
+    
     final isMobile = ResponsiveHelper.isMobile(context);
     // 모바일 + 홈(0)일 때만 appBar를 비워서, body 내 SliverAppBar(노란 헤더) 하나만 보이게 함. 이중 AppBar 방지.
     final showHeaderInBody = isMobile && _bottomIndex == 0;

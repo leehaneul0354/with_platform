@@ -73,12 +73,21 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
 
   /// CHECK: 페이지 연결성 확인 완료 — 로그아웃 시 이전 사용자 데이터 제거 후 MainScreen으로 pushAndRemoveUntil
   Future<void> _logout() async {
+    debugPrint('🚩 [LOG] 로그아웃 버튼 클릭됨 (AdminMainScreen)');
+    
+    // 로그아웃 실행 - 세션 완전히 파괴
     await AuthRepository.instance.logout();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
+    
+    debugPrint('🚩 [LOG] AuthRepository.logout() 완료 - 네비게이션 시작');
+    
+    // rootNavigator: true를 사용하여 모든 다이얼로그/시트를 포함한 전체 스택을 비우고 MainScreen으로 강제 이동
+    debugPrint('🚩 [LOG] Navigator.pushAndRemoveUntil 실행 - rootNavigator: true');
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const MainScreen()),
       (route) => false,
     );
+    debugPrint('🚩 [LOG] Navigator.pushAndRemoveUntil 완료');
   }
 
   @override

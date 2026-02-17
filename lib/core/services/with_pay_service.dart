@@ -11,6 +11,12 @@ final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 /// userId별 잔액 스트림 캐시 — 동일 사용자에 대해 한 번만 구독 (중복 로그/구독 방지)
 final Map<String, Stream<DocumentSnapshot<Map<String, dynamic>>>> _balanceStreamCache = {};
 
+/// WITH Pay 스트림 캐시 클리어 (로그아웃 시 호출)
+void clearWithPayStreamCache() {
+  _balanceStreamCache.clear();
+  debugPrint('[WITHPAY] : 잔액 스트림 캐시 완전 삭제됨');
+}
+
 /// 사용자 WITH Pay 잔액 한 번 읽기 (없으면 0)
 Future<int> getWithPayBalance(String userId) async {
   try {
@@ -28,7 +34,14 @@ Future<int> getWithPayBalance(String userId) async {
 }
 
 /// 사용자 잔액 실시간 스트림 (마이페이지·후원 화면 반영용). userId당 1회만 구독·로그.
+/// 로그아웃 후에는 스트림을 반환하지 않음 (세션 부활 방지)
 Stream<DocumentSnapshot<Map<String, dynamic>>> withPayBalanceStream(String userId) {
+  // userId가 null이거나 빈 문자열이면 빈 스트림 반환
+  if (userId.isEmpty) {
+    debugPrint('[WITHPAY] : 잔액 스트림 차단 - userId가 비어있음');
+    return const Stream.empty();
+  }
+  
   return _balanceStreamCache.putIfAbsent(userId, () {
     debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$userId (1회)');
     return _firestore
