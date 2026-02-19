@@ -41,29 +41,53 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _initialize() async {
     try {
-      // 로그아웃 중이 아닐 때만 동기화 실행
+      // 초기화가 완료될 때까지 대기
+      int attempts = 0;
+      while (!AuthRepository.instance.isInitialized && attempts < 50) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        attempts++;
+      }
+      
+      if (!mounted) return;
+      
+      // 세션 체크: SharedPreferences에 저장된 유저 정보 확인 (FirebaseAuth 대신)
       final user = AuthRepository.instance.currentUser;
-      if (user == null) {
-        debugPrint('🚩 [LOG] SplashScreen - 유저가 null이므로 ensureAuthSync 스킵 (자동 로그인 차단)');
-        // 유저가 없어도 MainScreen으로 이동 (비로그인 상태의 메인 화면)
-        debugPrint('🚩 [LOG] SplashScreen - 비로그인 상태의 MainScreen으로 이동');
+      
+      if (user != null) {
+        debugPrint('🚩 [LOG] SplashScreen - 세션 발견: ${user.id}, 배경에서 Firestore 동기화 시작');
+        
+        // 유저가 있으면 바로 MainScreen으로 이동하고, 배경에서 조용히 Firestore 데이터 업데이트
         _navigateToMain();
+        
+        // 배경에서 Firestore 데이터 업데이트 (화면을 멈추지 않음)
+        try {
+          await AuthRepository.instance.ensureAuthSync(); // 배경 동기화만 수행
+          debugPrint('🚩 [LOG] SplashScreen - 배경 Firestore 동기화 완료');
+        } catch (e) {
+          debugPrint('🚩 [LOG] SplashScreen - 배경 동기화 실패 (무시): $e');
+        }
+        
+        // 테스트 계정 시드 (배경에서)
+        try {
+          await AuthRepository.instance.seedTestAccountsWithBirthDateIfNeeded();
+        } catch (_) {}
+        
         return;
       }
       
-      // 유저가 있을 때만 동기화 실행
-      await AuthRepository.instance.ensureAuthSync();
-      if (!mounted) return;
+      // 유저가 없으면 비로그인 상태의 MainScreen으로 이동
+      debugPrint('🚩 [LOG] SplashScreen - 세션 없음, 비로그인 상태의 MainScreen으로 이동');
+      _navigateToMain();
       
+      // 테스트 계정 시드 (배경에서)
       try {
         await AuthRepository.instance.seedTestAccountsWithBirthDateIfNeeded();
       } catch (_) {}
-      if (!mounted) return;
-      _navigateToMain();
+      
     } catch (e) {
       if (!mounted) return;
       // 에러 발생 시에도 MainScreen으로 이동 (비로그인 상태든 로그인 상태든)
-      debugPrint('🚩 [LOG] SplashScreen - 에러 발생, MainScreen으로 이동');
+      debugPrint('🚩 [LOG] SplashScreen - 에러 발생, MainScreen으로 이동: $e');
       _navigateToMain();
     }
   }

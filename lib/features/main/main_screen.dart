@@ -383,6 +383,7 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
     return [homeScreen, myPageScreen];
   }
 
+
   /// BottomNavigationBar의 currentIndex 계산. _isAdmin이 true면 무조건 5탭 구간(0~4) 유지
   int _getBottomNavIndex() {
     if (_isAdmin) {
@@ -438,7 +439,9 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
                       )
                     : const SizedBox(
                         height: 100,
-                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
               ),
               const SizedBox(height: 8),
@@ -536,9 +539,13 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
                 isLoggedIn: _isLoggedIn,
                 onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
               ),
-        body: IndexedStack(
-          index: _getIndexedStackIndex(),
-          children: _buildIndexedStackChildren(),
+        body: SafeArea(
+          top: !showHeaderInBody, // 모바일 홈일 때는 SliverAppBar가 있으므로 top false
+          bottom: true,
+          child: IndexedStack(
+            index: _getIndexedStackIndex(),
+            children: _buildIndexedStackChildren(),
+          ),
         ),
         bottomNavigationBar: isMobile
             ? BottomNavBar(

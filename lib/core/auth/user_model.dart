@@ -67,6 +67,20 @@ class UserModel {
   /// 관리자 여부 (type == admin 과 동일, 호환용)
   bool get isAdmin => type == UserType.admin;
 
+  /// 온보딩 필수 정보가 모두 입력되었는지 확인
+  /// 필수 정보: 생년월일(birthDate), 회원 유형(type이 명시적으로 선택됨 - viewer도 선택 가능)
+  /// 주의: viewer는 기본값이지만, 사용자가 명시적으로 선택한 경우도 온보딩 완료로 간주
+  bool get hasRequiredOnboardingInfo {
+    // 생년월일이 없거나 비어있으면 false
+    if (birthDate == null || birthDate!.isEmpty) {
+      return false;
+    }
+    
+    // 생년월일이 있으면 온보딩 완료로 간주 (회원 유형은 viewer 포함 모든 타입 허용)
+    // viewer는 기본값이지만, 생년월일이 있다는 것은 사용자가 온보딩을 완료했다는 의미
+    return true;
+  }
+
   /// Firestore/SharedPreferences 문서를 UserModel로 변환.
   /// 모든 필드에 대해 null/타입 안전 처리(as String? ?? '' 등)로 null 에러 원천 차단.
   factory UserModel.fromJson(Map<String, dynamic>? json) {
@@ -165,6 +179,7 @@ class UserModel {
       if (s == 'admin') return UserType.admin;
       if (s == 'patient') return UserType.patient;
       if (s == 'donor') return UserType.donor;
+      if (s == 'sponsor') return UserType.donor; // sponsor는 donor로 매핑
       return UserType.viewer;
     } catch (_) {
       return UserType.viewer;

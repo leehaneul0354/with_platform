@@ -20,6 +20,8 @@ import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
 import 'donation_request_screen.dart';
 import 'main_screen.dart';
+import 'account_info_screen.dart';
+import '../../core/navigation/app_navigator.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({
@@ -865,6 +867,314 @@ class _MyPageScreenState extends State<MyPageScreen> {
     return value.toString();
   }
 
+  Future<void> _handleWithdrawal(BuildContext context, UserModel user) async {
+    // 1차 확인 다이얼로그
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text(
+              '회원 탈퇴',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          '정말 WITH 플랫폼을 떠나시겠습니까?\n\n탈퇴 시 후원 내역 및 데이터 복구가 불가능합니다.',
+          style: TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('예'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    // 2차 확인: 탈퇴 사유 설문
+    final reason = await _showWithdrawalReasonDialog(context);
+    if (reason == null || !mounted) return;
+
+    // 최종 탈퇴 처리
+    final finalConfirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          '최종 확인',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          '정말 탈퇴하시겠습니까?\n이 작업은 되돌릴 수 없습니다.',
+          style: TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('최종 탈퇴'),
+          ),
+        ],
+      ),
+    );
+
+    if (finalConfirm != true || !mounted) return;
+
+    // 탈퇴 처리
+    if (!mounted) return;
+    
+    // 로딩 다이얼로그 표시 (context 유효성 검사 후)
+    BuildContext? dialogContext;
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          dialogContext = ctx;
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
+    }
+
+    try {
+      await AuthRepository.instance.deleteAccount(reason: reason);
+      
+      // 탈퇴 완료 후 약간의 지연 (상태 동기화 대기)
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // GlobalKey를 사용하여 안전하게 로그인 화면으로 리다이렉트
+      // context가 유효하지 않아도 작동함
+      final navigator = appNavigatorKey.currentState;
+      if (navigator != null) {
+        // 로딩 다이얼로그 닫기 (context가 유효한 경우에만)
+        if (mounted && dialogContext != null) {
+          try {
+            Navigator.of(dialogContext!, rootNavigator: true).pop();
+          } catch (_) {
+            // 다이얼로그가 이미 닫혔을 수 있음 (무시)
+          }
+        }
+        
+        // 모든 화면 스택 제거하고 로그인 화면으로 이동
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => const LoginScreen(),
+            settings: const RouteSettings(name: '/login'),
+          ),
+          (route) => false,
+        );
+        
+        // SnackBar 표시 (GlobalKey의 context 사용)
+        if (appNavigatorKey.currentContext != null) {
+          final scaffoldMessenger = ScaffoldMessenger.of(appNavigatorKey.currentContext!);
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('회원 탈퇴가 완료되었습니다.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // Navigator가 없는 경우 (매우 드문 경우) - mounted 체크 후 처리
+        if (mounted && dialogContext != null) {
+          try {
+            Navigator.of(dialogContext!, rootNavigator: true).pop();
+          } catch (_) {}
+        }
+        debugPrint('🚩 [LOG] Navigator Key가 null입니다. 화면 전환 실패');
+        
+        // Fallback: mounted context로 시도
+        if (mounted) {
+          try {
+            Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => const LoginScreen(),
+                settings: const RouteSettings(name: '/login'),
+              ),
+              (route) => false,
+            );
+          } catch (e) {
+            debugPrint('🚩 [LOG] Fallback 네비게이션도 실패: $e');
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      debugPrint('🚩 [LOG] 회원 탈퇴 처리 중 에러: $e');
+      debugPrint('🚩 [LOG] 스택 트레이스: $stackTrace');
+      
+      // 에러 발생 시 로딩 다이얼로그 닫기
+      if (mounted && dialogContext != null) {
+        try {
+          Navigator.of(dialogContext!, rootNavigator: true).pop();
+        } catch (_) {
+          // 다이얼로그가 이미 닫혔을 수 있음
+        }
+      }
+      
+      // 에러 메시지 표시 (GlobalKey 사용)
+      final navigator = appNavigatorKey.currentState;
+      if (navigator != null && appNavigatorKey.currentContext != null) {
+        ScaffoldMessenger.of(appNavigatorKey.currentContext!).showSnackBar(
+          SnackBar(
+            content: Text('탈퇴 처리 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else if (mounted) {
+        // Fallback: mounted context 사용
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('탈퇴 처리 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String?> _showWithdrawalReasonDialog(BuildContext context) async {
+    String? selectedReason;
+    
+    return await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            '탈퇴 사유',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '탈퇴 사유를 선택해주세요.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                _buildReasonOption(
+                  '이용이 불편해서',
+                  selectedReason == '이용이 불편해서',
+                  () => setState(() => selectedReason = '이용이 불편해서'),
+                ),
+                const SizedBox(height: 8),
+                _buildReasonOption(
+                  '후원 대상이 부족해서',
+                  selectedReason == '후원 대상이 부족해서',
+                  () => setState(() => selectedReason = '후원 대상이 부족해서'),
+                ),
+                const SizedBox(height: 8),
+                _buildReasonOption(
+                  '개인정보 보호를 위해',
+                  selectedReason == '개인정보 보호를 위해',
+                  () => setState(() => selectedReason = '개인정보 보호를 위해'),
+                ),
+                const SizedBox(height: 8),
+                _buildReasonOption(
+                  '기타',
+                  selectedReason == '기타',
+                  () => setState(() => selectedReason = '기타'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              onPressed: selectedReason != null
+                  ? () => Navigator.of(ctx).pop(selectedReason)
+                  : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.coral,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReasonOption(String reason, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.coral.withValues(alpha: 0.1)
+              : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.coral : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color: isSelected ? AppColors.coral : Colors.grey.shade600,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                reason,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? AppColors.coral : AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 고객센터 리스트 — [후원 신청하기] 리스트 아이템 크기로 첫 항목, 강조색 유지. 관리자일 때만 [관리자 시스템] 최상단 노출.
   Widget _buildCustomerCenterList(BuildContext context, bool isLoggedIn, bool isPatient) {
     final user = AuthRepository.instance.currentUser;
@@ -885,6 +1195,16 @@ class _MyPageScreenState extends State<MyPageScreen> {
         _DonationApplyTile(
           onPressed: () => _onDonationApplyTap(context, isLoggedIn, isPatient),
         ),
+        if (isLoggedIn)
+          _MenuTile(
+            icon: Icons.account_circle_outlined,
+            label: '계정 정보',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AccountInfoScreen()),
+              );
+            },
+          ),
         _MenuTile(icon: Icons.person_outline, label: '개인정보 수집 및 이용', onTap: () {}),
         _MenuTile(icon: Icons.description_outlined, label: '서비스 이용 약관', onTap: () {}),
         _MenuTile(icon: Icons.code, label: '오픈소스 라이선스', onTap: () {}),

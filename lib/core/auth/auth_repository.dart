@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../constants/firestore_keys.dart';
 import '../constants/test_accounts.dart';
 import '../constants/assets.dart';
@@ -35,11 +36,18 @@ class AuthRepository extends ChangeNotifier {
   
   /// 로그아웃 진행 중인지 확인 (외부에서 접근 가능)
   bool get isLoggingOut => _isLoggingOut;
+  
+  /// 초기화 완료 플래그: 초기화가 끝난 후에는 인증 스트림이 화면을 강제로 전환하지 않도록 방어
+  bool _isInitialized = false;
+  
+  /// 초기화 완료 여부 확인 (외부에서 접근 가능)
+  bool get isInitialized => _isInitialized;
 
   Future<void> loadCurrentUser() async {
     // 로그아웃 중이면 자동 로그인 차단
     if (_isLoggingOut) {
       debugPrint('🚩 [LOG] loadCurrentUser 차단됨 - 로그아웃 진행 중');
+      _isInitialized = true; // 초기화는 완료로 표시 (로그아웃 중이어도)
       return;
     }
     
@@ -51,6 +59,7 @@ class AuthRepository extends ChangeNotifier {
       if (json == null || json.isEmpty) {
         debugPrint('🚩 [LOG] loadCurrentUser - SharedPreferences에 유저 데이터 없음, 메모리 캐시 null로 설정');
         _currentUser = null;
+        _isInitialized = true; // 초기화 완료
         return;
       }
       
@@ -58,25 +67,44 @@ class AuthRepository extends ChangeNotifier {
       if (decoded is! Map<String, dynamic>) {
         debugPrint('🚩 [LOG] loadCurrentUser - 잘못된 데이터 형식, 메모리 캐시 null로 설정');
         _currentUser = null;
+        _isInitialized = true; // 초기화 완료
         return;
       }
       
       // 데이터가 있을 때만 복구
       _currentUser = UserModel.fromJson(decoded);
       debugPrint('🚩 [LOG] loadCurrentUser - 유저 복구됨: ${_currentUser?.id}');
+      _isInitialized = true; // 초기화 완료
     } catch (e) {
       debugPrint('🚩 [LOG] loadCurrentUser - 에러 발생: $e, 메모리 캐시 null로 설정');
       _currentUser = null;
+      _isInitialized = true; // 에러 발생해도 초기화 완료로 표시 (무한 루프 방지)
     }
   }
 
   /// 모든 페이지 진입 시 호출 가능. SharedPreferences 기준으로 현재 로그인 상태를 다시 불러와 동기화.
   /// 단, 로그아웃 중이면 실행되지 않음.
+  /// 초기화가 완료된 후에는 화면 전환을 강제하지 않음 (무한 루프 방지)
   Future<void> ensureAuthSync() async {
     if (_isLoggingOut) {
       debugPrint('🚩 [LOG] ensureAuthSync 차단됨 - 로그아웃 진행 중');
       return;
     }
+    
+    // 이미 초기화가 완료되었으면 배경에서만 동기화 (화면 전환 없음)
+    if (_isInitialized) {
+      debugPrint('🚩 [LOG] ensureAuthSync - 이미 초기화 완료, 배경 동기화만 수행');
+      // 배경에서 Firestore 데이터만 업데이트 (화면 전환 없음)
+      if (_currentUser != null) {
+        try {
+          await fetchUserFromFirestore(_currentUser!.id);
+        } catch (e) {
+          debugPrint('🚩 [LOG] ensureAuthSync - 배경 동기화 실패 (무시): $e');
+        }
+      }
+      return;
+    }
+    
     await loadCurrentUser();
   }
 
@@ -225,6 +253,41 @@ class AuthRepository extends ChangeNotifier {
     await _firestore.collection(FirestoreCollections.users).doc(user.id).update(user.toJson());
   }
 
+  /// 온보딩 정보 업데이트 (생년월일, 회원 유형, 프로필 이미지)
+  Future<void> updateUserOnboardingInfo({
+    required String userId,
+    required String birthDate,
+    required UserType userType,
+    String? profileImage,
+  }) async {
+    // 로그아웃 중이면 차단
+    if (_isLoggingOut) {
+      debugPrint('🚩 [LOG] updateUserOnboardingInfo 차단됨 - 로그아웃 진행 중');
+      return;
+    }
+
+    try {
+      final updateData = <String, dynamic>{
+        FirestoreUserKeys.birthDate: birthDate,
+        FirestoreUserKeys.role: userType.name,
+        FirestoreUserKeys.type: userType.name,
+      };
+      
+      // 프로필 이미지가 제공된 경우에만 업데이트
+      if (profileImage != null && profileImage.isNotEmpty) {
+        updateData[FirestoreUserKeys.profileImage] = profileImage;
+      }
+      
+      await _firestore.collection(FirestoreCollections.users).doc(userId).update(updateData);
+      
+      debugPrint('🚩 [LOG] 온보딩 정보 업데이트 완료 - userId: $userId, birthDate: $birthDate, type: ${userType.name}, profileImage: ${profileImage ?? "기본값"}');
+    } catch (e, stackTrace) {
+      debugPrint('🚩 [LOG] 온보딩 정보 업데이트 실패 - $e');
+      debugPrint('🚩 [LOG] 스택 트레이스: $stackTrace');
+      rethrow;
+    }
+  }
+
   /// Firestore에서 최신 유저 문서를 불러와 동기화. 회원정보 수정 화면 등에서 실시간 반영용.
   /// 이미 admin인 경우 서버 응답에서 role이 누락/기본값이어도 admin 유지(강등 방지).
   Future<UserModel?> fetchUserFromFirestore(String userId) async {
@@ -288,6 +351,125 @@ class AuthRepository extends ChangeNotifier {
     } catch (e) {
       debugPrint('AuthRepository.updatePasswordReauth: $e');
       return false;
+    }
+  }
+
+  /// 구글 소셜 로그인 (Web)
+  /// 로그인 성공 시 Firestore users 컬렉션에 자동 저장/업데이트, 기본 role은 sponsor
+  Future<UserModel?> signInWithGoogle() async {
+    // 로그아웃 중이면 차단
+    if (_isLoggingOut) {
+      debugPrint('🚩 [LOG] signInWithGoogle 차단됨 - 로그아웃 진행 중');
+      return null;
+    }
+
+    try {
+      // 웹 환경에서 Google Sign-In 최적화
+      // clientId는 index.html의 메타 태그에서 자동으로 읽어옴
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+        // 웹 환경에서 명시적으로 설정 (선택사항)
+        // clientId는 메타 태그에서 자동으로 읽어오므로 생략 가능
+      );
+
+      debugPrint('🚩 [LOG] 구글 로그인 시작 - 팝업 호출');
+      
+      // 약간의 지연을 추가하여 클릭 이벤트가 완전히 처리되도록 함
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        debugPrint('🚩 [LOG] 구글 로그인 취소됨');
+        return null; // 사용자가 로그인 취소
+      }
+      
+      // 구글 계정 정보 추출
+      final String email = googleUser.email;
+      final String displayName = googleUser.displayName ?? '이름없음';
+      final String photoUrl = googleUser.photoUrl ?? '';
+      final String userId = email.split('@')[0]; // 이메일 앞부분을 userId로 사용
+
+      debugPrint('🚩 [LOG] 구글 로그인 성공 - email: $email, name: $displayName');
+
+      // Firestore에서 기존 유저 확인
+      final userDoc = await _firestore.collection(FirestoreCollections.users).doc(userId).get();
+      
+      UserModel user;
+      
+      if (userDoc.exists) {
+        // 기존 유저: 정보 업데이트
+        final existingData = userDoc.data()!;
+        user = UserModel.fromJson(existingData);
+        
+        // 프로필 정보 업데이트 (이름만, 프로필 이미지는 온보딩에서 선택하므로 업데이트 안 함)
+        user = user.copyWith(
+          nickname: displayName,
+          email: email,
+          // profileImage는 기존 값 유지 (온보딩에서 선택한 마스코트 유지)
+        );
+        
+        // Firestore 업데이트 (프로필 이미지는 업데이트 안 함 - 온보딩에서 선택한 값 유지)
+        await _firestore.collection(FirestoreCollections.users).doc(userId).update({
+          FirestoreUserKeys.nickname: displayName,
+          FirestoreUserKeys.email: email,
+          // profileImage는 업데이트 안 함 (온보딩에서 선택한 마스코트 유지)
+        });
+        
+        debugPrint('🚩 [LOG] 기존 유저 정보 업데이트 완료');
+      } else {
+        // 신규 유저: 생성 (기본 role은 viewer로 설정하여 온보딩 필요 상태로 표시)
+        // 프로필 이미지는 온보딩에서 선택하므로 null로 설정 (구글 프로필 이미지 사용 안 함)
+        user = UserModel(
+          id: userId,
+          email: email,
+          password: '', // 소셜 로그인은 비밀번호 없음
+          nickname: displayName,
+          type: UserType.viewer, // 기본 role은 viewer (온보딩 필요 상태)
+          trustScore: 0,
+          isVerified: true, // 소셜 로그인은 자동 인증
+          profileImage: null, // 온보딩에서 선택하도록 null로 설정 (구글 프로필 이미지 사용 안 함)
+          birthDate: null, // 생년월일 없음 (온보딩 필요)
+        );
+
+        // Firestore에 저장
+        // 프로필 이미지는 온보딩에서 선택하므로 기본값 사용 (구글 프로필 이미지 URL 저장 안 함)
+        await _firestore.collection(FirestoreCollections.users).doc(userId).set({
+          FirestoreUserKeys.userId: userId,
+          FirestoreUserKeys.id: userId,
+          FirestoreUserKeys.email: email,
+          FirestoreUserKeys.password: '', // 소셜 로그인은 비밀번호 없음
+          FirestoreUserKeys.nickname: displayName,
+          FirestoreUserKeys.role: UserType.viewer.name, // 기본 role은 viewer (온보딩 필요)
+          FirestoreUserKeys.type: UserType.viewer.name,
+          FirestoreUserKeys.trustScore: 0,
+          FirestoreUserKeys.createdAt: FieldValue.serverTimestamp(),
+          FirestoreUserKeys.joinedAt: FieldValue.serverTimestamp(),
+          FirestoreUserKeys.isVerified: true,
+          FirestoreUserKeys.birthDate: '', // 생년월일 없음 (온보딩 필요)
+          FirestoreUserKeys.profileImage: 'profile_yellow.png', // 기본값 사용 (온보딩에서 변경 가능)
+          FirestoreUserKeys.withPayBalance: 0,
+        });
+        
+        debugPrint('🚩 [LOG] 신규 유저 생성 완료 (온보딩 필요)');
+      }
+
+      // 현재 유저로 설정
+      await setCurrentUser(user);
+      
+      // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화
+      initializeWithPayService();
+      initializeApprovedPostsStream();
+      
+      // 상태 변화 즉시 알림 (로그인 루프 방지)
+      notifyListeners();
+      debugPrint('🚩 [LOG] 구글 로그인 완료 - notifyListeners() 호출');
+      
+      return user;
+    } catch (e, stackTrace) {
+      debugPrint('🚩 [LOG] 구글 로그인 실패 - $e');
+      debugPrint('🚩 [LOG] 스택 트레이스: $stackTrace');
+      return null;
     }
   }
 
@@ -414,9 +596,79 @@ class AuthRepository extends ChangeNotifier {
     
     // 플래그 해제
     _isLoggingOut = false;
+    _isInitialized = false; // 로그아웃 시 초기화 플래그도 리셋 (다음 로그인 시 재초기화)
     debugPrint('🚩 [LOG] 로그아웃 플래그 해제됨 - 화면 전환 완료 후');
     
     // 최종 확인 로그
     debugPrint('🚩 [LOG] AuthRepository 로그아웃 완료 - 사용자 세션 종료 (최종 확인: _currentUser=${_currentUser?.id ?? "null"})');
+  }
+
+  /// 회원 탈퇴: Firestore에서 유저 데이터 삭제 및 로그아웃 처리
+  /// reason: 탈퇴 사유 (선택사항, 로그 기록용)
+  Future<void> deleteAccount({String? reason}) async {
+    final user = _currentUser;
+    if (user == null) {
+      debugPrint('🚩 [LOG] deleteAccount - 현재 유저가 없음');
+      throw Exception('로그인된 사용자가 없습니다.');
+    }
+
+    debugPrint('🚩 [LOG] 회원 탈퇴 시작 - userId: ${user.id}, reason: ${reason ?? "없음"}');
+
+    // 로그아웃 플래그 설정 (자동 로그인 방지)
+    _isLoggingOut = true;
+
+    try {
+      // Firestore에서 유저 문서 삭제
+      await _firestore.collection(FirestoreCollections.users).doc(user.id).delete();
+      debugPrint('🚩 [LOG] Firestore 유저 문서 삭제 완료 - userId: ${user.id}');
+
+      // 탈퇴 사유가 있으면 별도 컬렉션에 기록 (선택사항)
+      if (reason != null && reason.isNotEmpty) {
+        try {
+          await _firestore.collection('withdrawal_reasons').add({
+            'userId': user.id,
+            'reason': reason,
+            'deletedAt': FieldValue.serverTimestamp(),
+          });
+          debugPrint('🚩 [LOG] 탈퇴 사유 기록 완료 - reason: $reason');
+        } catch (e) {
+          debugPrint('🚩 [LOG] 탈퇴 사유 기록 실패 (무시) - $e');
+        }
+      }
+
+      // 메모리 및 SharedPreferences 정리 (logout()과 동일한 로직이지만 중복 호출 방지)
+      _currentUser = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyCurrentUser);
+      await prefs.remove('user');
+      await prefs.remove('userId');
+      await prefs.remove('token');
+      await prefs.remove('auth_token');
+      await prefs.remove('session');
+      await prefs.remove('current_user');
+      await prefs.remove('logged_in_user');
+      
+      // 스트림 캐시 삭제
+      clearWithPayStreamCache();
+      clearApprovedPostsStreamCache();
+      
+      // 상태 변화 알림
+      notifyListeners();
+      
+      debugPrint('🚩 [LOG] 회원 탈퇴 완료 - userId: ${user.id}');
+    } catch (e, stackTrace) {
+      debugPrint('🚩 [LOG] 회원 탈퇴 실패 - $e');
+      debugPrint('🚩 [LOG] 스택 트레이스: $stackTrace');
+      
+      // 에러 발생 시 플래그 해제
+      _isLoggingOut = false;
+      
+      rethrow;
+    } finally {
+      // 플래그 해제 (성공/실패 모두)
+      await Future.delayed(const Duration(milliseconds: 500));
+      _isLoggingOut = false;
+      _isInitialized = false; // 탈퇴 시 초기화 플래그도 리셋
+    }
   }
 }

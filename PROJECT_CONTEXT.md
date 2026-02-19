@@ -28,6 +28,8 @@
   - **피드/투데이 하트(좋아요) 아이콘:** `StoryFeedCard`, `TodayThankYouGrid`, `PatientPostsListScreen`, `PatientMyContentScreen`에서 `isLikedStream` 기반으로 미좋아요 시 `Icons.favorite_border`, 좋아요 시 `Icons.favorite` + `AppColors.coral`. 상세 화면(PostDetailScreen, ThankYouDetailScreen) 좋아요 아이콘도 동일 브랜드 컬러 적용. 피드 카드에서 하트 탭 시 `toggleLike` 호출로 즉시 반영.
   - **관리자 대시보드 일반/후원 구분:** 투병 기록 승인 탭에서 카드별 **[일반 기록]**(푸른 배지) / **[후원 요청]**(코랄 배지) 표시. 상세 풀시트 상단에 동일 태그 노출, 후원 요청 시 '후원 요청 요약' 섹션(후원 유형·목표 금액·필요 물품·수량·배송 정보·병원명·사용 목적) 표시. 상단 ChoiceChip 필터 [전체 / 일반 기록 / 후원 요청]로 검수 우선순위 조절.
   - **Firestore 내부 ASSERTION FAILED (ID: ca9) 에러 수정 및 메인 피드 로딩 안정화:** Flutter Web 환경에서 로그아웃/로그인 시 Firestore 스트림 충돌 방지 및 간헐적 피드 로딩 실패 해결. (1) `main.dart` — Firebase 초기화 직후 `Firestore.settings`(persistenceEnabled: false, cacheSizeBytes: CACHE_SIZE_UNLIMITED) 적용, 모든 초기화 단계에 try-catch 에러 핸들링 추가, 피드 스트림 초기화 실패 시 500ms 후 재시도 로직. (2) `MainScreen` — 폭포수형 순차 로딩: 유저 확인 → 피드 스트림 초기화 확인/재시도 → 300ms → 피드 허용(_phaseFeedReady) → 300ms → 잔액/후원 허용(_phaseStatsReady), 각 단계별 로그 출력. (3) `with_pay_service.dart` — `_isInitialized` 플래그로 중복 구독 방지, `initializeWithPayService()`/`clearWithPayStreamCache()`로 초기화/리셋 관리, `withPayBalanceStream()`에서 초기화 체크 후 빈 스트림 반환. (4) `approved_posts_feed.dart` — `_approvedPostsStreamInitialized` 플래그로 중복 구독 방지, `initializeApprovedPostsStream(force: bool)`로 강제 초기화 지원, `_approvedPostsStream` getter에서 미초기화 시 자동 초기화, 스트림 에러 발생 시 캐시 리셋 및 재시도 가능하도록 처리, `ApprovedPostsFeed`/`ApprovedPostsFeedSliver`를 StatefulWidget으로 변경하여 재시도 버튼 구현(ValueKey로 스트림 재구독). (5) `auth_repository.dart` — 로그인 성공 시 `initializeWithPayService()`, `initializeApprovedPostsStream()` 호출, 로그아웃 시 `clearWithPayStreamCache()`, `clearApprovedPostsStreamCache()` 호출하여 모든 스트림 캐시 완전 삭제.
+  - **소셜 로그인 UI 완성 및 구글 인증 연동:** 한국형 소셜 서비스 스타일에 맞게 로그인 화면 고도화. (1) `login_screen.dart` — 기존 로그인 버튼 하단에 "또는 소셜 계정으로 로그인" 안내 문구와 구분선 추가, 카카오톡/구글/네이버 원형 아이콘 버튼 3개 가로 정렬(구글은 브랜드 컬러 #4285F4, 카카오/네이버는 회색 톤), 카카오/네이버 버튼 클릭 시 "서비스 준비 중입니다" SnackBar 표시, 중복 클릭 방지 플래그(`_isLoggingInGoogle`) 추가. (2) `auth_repository.dart` — `google_sign_in` 패키지를 사용한 `signInWithGoogle()` 메서드 구현, 구글 로그인 성공 시 Firestore `users` 컬렉션에 자동 저장/업데이트(기존 유저는 정보 업데이트, 신규 유저는 생성), 신규 유저는 기본 `role`을 `viewer`로 설정하여 온보딩 필요 상태 표시, 프로필 이미지(photoUrl) 자동 저장, 로그인 성공 시 스트림 서비스 초기화. (3) `pubspec.yaml` — `google_sign_in: ^6.2.1`, `intl: ^0.19.0` 패키지 추가. (4) `web/index.html` — 구글 클라이언트 ID 메타 태그 추가.
+  - **구글 로그인 기반 사용자 온보딩 시스템:** 구글 로그인 후 필수 정보 수집을 위한 스마트 온보딩 구현. (1) `user_model.dart` — `hasRequiredOnboardingInfo` getter 추가(생년월일 필수, 회원 유형은 viewer 포함 모든 타입 허용). (2) `additional_info_screen.dart` — 신규 유저 또는 필수 정보 누락 유저를 위한 추가 정보 입력 화면 생성, 생년월일 DatePicker(한국어 로케일, 코랄 테마), 회원 유형 선택(환자/후원자/일반회원) 카드형 UI, 정보 저장 후 메인 화면으로 이동. (3) `auth_repository.dart` — `updateUserOnboardingInfo()` 메서드 추가(생년월일, 회원 유형 업데이트), `signInWithGoogle()` 수정(신규 유저는 기본 role을 viewer로 설정, 생년월일 없음으로 초기화). (4) `login_screen.dart` — 구글 로그인 성공 후 `hasRequiredOnboardingInfo` 체크, 필수 정보 누락 시 `AdditionalInfoScreen`으로 리다이렉트, 필수 정보 완료 시 메인 화면으로 이동.
 
 ---
 
@@ -43,7 +45,8 @@
 | `lib/core/constants/assets.dart` | WithMascots(마스코트 이미지 경로). `images/xxx` 사용 → 웹 빌드 시 build/web/assets/images/ 로 출력 |
 | `images/` (루트) | 에셋 이미지 폴더. pubspec `images/` 등록. mascot_p.png, image_48dd69.png 등 배치 |
 | `lib/core/auth/user_model.dart` | UserModel, UserType, MemberStatus. joinedAt/status/trustScore/isVerified, copyWith |
-| `lib/core/auth/auth_repository.dart` | AuthRepository(싱글톤). getUsers/updateUser, SharedPreferences 저장 |
+| `lib/core/auth/auth_repository.dart` | AuthRepository(싱글톤). getUsers/updateUser, SharedPreferences 저장, `signInWithGoogle()` 구글 소셜 로그인 구현, `updateUserOnboardingInfo()` 온보딩 정보 업데이트 |
+| `lib/features/auth/additional_info_screen.dart` | 구글 로그인 후 신규 유저 또는 필수 정보 누락 유저의 추가 정보 입력 화면. 생년월일 DatePicker, 회원 유형 선택(환자/후원자/일반회원) |
 | `lib/core/constants/responsive_breakpoints.dart` | ResponsiveBreakpoints (mobileMax 600px) |
 | `lib/core/theme/app_theme.dart` | AppTheme.lightTheme (ThemeData) |
 | `lib/core/util/responsive_util.dart` | ResponsiveHelper (isMobile/isDesktop/screenWidth) |
@@ -164,4 +167,4 @@
 
 ---
 
-*마지막 갱신: 메인 피드 로딩 안정화 및 Firestore 엔진 충돌(ID: ca9) 완전 방어 완료. Flutter Web 환경에서 간헐적 피드 로딩 실패 문제 해결을 위해 main.dart에 모든 초기화 단계에 try-catch 에러 핸들링 및 재시도 로직 추가, approved_posts_feed.dart에 강제 초기화(force) 옵션 및 자동 초기화 로직 추가, ApprovedPostsFeed/ApprovedPostsFeedSliver를 StatefulWidget으로 변경하여 재시도 버튼 구현, MainScreen에서 피드 스트림 초기화 확인 및 재시도 로직 추가, 스트림 에러 발생 시 캐시 리셋 및 재연결 가능하도록 처리.*
+*마지막 갱신: 구글 로그인 기반 사용자 온보딩 시스템 구현 완료. UserModel에 `hasRequiredOnboardingInfo` getter 추가, AdditionalInfoScreen 생성(생년월일 DatePicker, 회원 유형 선택), AuthRepository에 `updateUserOnboardingInfo()` 메서드 추가, LoginScreen에서 온보딩 필요 시 AdditionalInfoScreen으로 리다이렉트, 구글 로그인 성공 후 필수 정보 체크 및 분기 처리 완료.*

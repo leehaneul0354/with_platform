@@ -8,6 +8,7 @@ import '../../core/constants/assets.dart';
 import '../../core/constants/test_accounts.dart';
 import 'find_password_screen.dart';
 import 'signup_screen.dart';
+import 'additional_info_screen.dart';
 
 // CHECK: 비밀번호 규칙 (4-20자) 적용 완료
 const int _idMinLength = 2;
@@ -50,6 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _passwordError;
   String? _errorMessage;
   bool _loading = false;
+  bool _isLoggingInGoogle = false; // 구글 로그인 중복 클릭 방지 플래그
 
   @override
   void initState() {
@@ -124,6 +126,71 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.of(context).pop(true);
     } else {
       setState(() => _errorMessage = '아이디 또는 비밀번호가 올바르지 않습니다.');
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    // 중복 클릭 방지
+    if (_isLoggingInGoogle || _loading) {
+      debugPrint('🚩 [LOG] 구글 로그인 중복 클릭 방지');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _isLoggingInGoogle = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // 약간의 지연을 추가하여 클릭 이벤트가 완전히 처리되도록 함
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      if (!mounted) return;
+
+      final user = await AuthRepository.instance.signInWithGoogle();
+
+      if (!mounted) return;
+      
+      setState(() {
+        _loading = false;
+        _isLoggingInGoogle = false;
+      });
+
+      if (user != null) {
+        // 성공 시 약간의 지연 후 네비게이션 (UI 업데이트 완료 대기)
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        
+        // 온보딩 필수 정보 체크
+        if (!user.hasRequiredOnboardingInfo) {
+          // 필수 정보가 없으면 추가 정보 입력 화면으로 강제 이동 (루프 방지)
+          debugPrint('🚩 [LOG] 온보딩 필요 - AdditionalInfoScreen으로 강제 이동');
+          Navigator.of(context, rootNavigator: true).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const AdditionalInfoScreen(),
+              settings: const RouteSettings(name: '/additional_info'),
+            ),
+          );
+        } else {
+          // 필수 정보가 모두 있으면 바로 메인으로 이동 (부드러운 전환)
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (!mounted) return;
+          Navigator.of(context, rootNavigator: true).pop(true);
+        }
+      } else {
+        setState(() => _errorMessage = '구글 로그인에 실패했습니다.');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('🚩 [LOG] 구글 로그인 에러: $e');
+      debugPrint('🚩 [LOG] 스택 트레이스: $stackTrace');
+      
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _isLoggingInGoogle = false;
+        _errorMessage = '구글 로그인 중 오류가 발생했습니다.';
+      });
     }
   }
 
@@ -210,6 +277,62 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text('로그인'),
                     ),
+                  ),
+                  const SizedBox(height: 32),
+                  // 소셜 로그인 구분선 및 안내 문구
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          '또는 소셜 계정으로 로그인',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // 소셜 로그인 버튼들
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _SocialLoginButton(
+                        icon: Icons.chat_bubble_outline,
+                        color: Colors.grey.shade400,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('서비스 준비 중입니다'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 20),
+                      _SocialLoginButton(
+                        icon: Icons.g_mobiledata,
+                        color: const Color(0xFF4285F4), // 구글 브랜드 컬러
+                        onTap: _handleGoogleLogin,
+                      ),
+                      const SizedBox(width: 20),
+                      _SocialLoginButton(
+                        icon: Icons.account_circle_outlined,
+                        color: Colors.grey.shade400,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('서비스 준비 중입니다'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
                   Row(
@@ -368,6 +491,51 @@ class _LoginMascotBubble extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// 소셜 로그인 원형 버튼
+class _SocialLoginButton extends StatelessWidget {
+  const _SocialLoginButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // InkWell을 사용하여 더 안정적인 탭 이벤트 처리
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(
+            icon,
+            color: color,
+            size: 28,
+          ),
+        ),
+      ),
     );
   }
 }
