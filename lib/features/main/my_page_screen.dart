@@ -535,12 +535,15 @@ class _MyPageScreenState extends State<MyPageScreen> {
                         color: AppColors.coral,
                       ),
                       const SizedBox(width: 8),
-                      const Text(
-                        '따뜻한 나눔을 시작하시겠습니까?',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                      Expanded(
+                        child: Text(
+                          '따뜻한 나눔을 시작하시겠습니까?',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          softWrap: true,
                         ),
                       ),
                     ],
