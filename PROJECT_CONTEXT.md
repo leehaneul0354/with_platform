@@ -92,7 +92,9 @@
 | `lib/shared/widgets/today_thank_you_grid.dart` | 투데이 감사편지 그리드. StatefulWidget, initState에서 today_thank_you 스트림 캐시. isLikedStream 기반 하트 아이콘·탭 토글. |
 | `lib/features/main/thank_you_detail_screen.dart` | 감사편지 상세. 좋아요 아이콘 AppColors.coral 적용. |
 | `lib/features/admin/admin_dashboard_screen.dart` | 탭 [투병 기록 승인][감사 편지 승인]. 투병 기록: 필터(전체/일반/후원), 카드 배지(일반 기록·후원 요청), 상세 시트 상단 태그·후원 요약. 감사 편지 리스트 탭 시 AdminThankYouDetailScreen push |
-| `lib/features/admin/admin_main_screen.dart` | 사이드바: 플랫폼 대시보드, 사용자 관리, 후원 내역, 게시글 승인, 병원/기관, **버그 제보 관리** |
+| `lib/features/admin/admin_main_screen.dart` | 사이드바: 플랫폼 대시보드, 사용자 관리, 후원 내역, 게시글 승인, **어드민 게시물 관리**, 병원/기관, 버그 제보 관리 |
+| `lib/features/admin/admin_post_management_section.dart` | 어드민 게시물 작성 폼(카테고리·이미지·제목·내용·링크·배지), 등록 리스트·삭제. 탐색 탭 배너용 |
+| `lib/core/services/admin_post_service.dart` | addAdminPost, deleteAdminPost, adminPostsStream — Firestore admin_posts |
 | `lib/features/admin/admin_bug_report_management_section.dart` | bug_reports Firestore 스트림 리스트, 카드(상태 배지·내용·이미지 썸네일·기기정보), [해결 완료] 버튼 |
 | `lib/features/admin/admin_thank_you_detail_screen.dart` | 관리자 전용 감사 편지 상세 풀스크린. 진입 시 admin 재확인, 하단 [삭제][승인], 이미지/환자명/내용/사용목적 레이아웃 |
 | `lib/core/services/admin_service.dart` | deleteDocument(컬렉션 경로·docId), deletePost/deleteThankYouPost 래퍼, showDeleteConfirmDialog, approveThankYouPost |

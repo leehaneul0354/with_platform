@@ -15,6 +15,7 @@ import 'admin_post_approval_section.dart';
 import 'admin_donation_management_section.dart';
 import 'admin_hospital_management_section.dart';
 import 'admin_bug_report_management_section.dart';
+import 'admin_post_management_section.dart';
 
 /// 관리자 카테고리 타입
 enum AdminCategory {
@@ -22,6 +23,7 @@ enum AdminCategory {
   users('사용자 관리', Icons.people_outlined),
   donations('후원 내역 관리', Icons.volunteer_activism_outlined),
   posts('게시글 승인', Icons.article_outlined),
+  adminPosts('어드민 게시물 관리 📝', Icons.campaign_outlined),
   hospitals('병원/기관 관리', Icons.local_hospital_outlined),
   bugReports('버그 제보 관리 🛠️', Icons.bug_report);
 
@@ -188,6 +190,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         AdminCategory.users => _UsersContent(),
         AdminCategory.donations => _DonationsContent(),
         AdminCategory.posts => _PostsContent(),
+        AdminCategory.adminPosts => _AdminPostsContent(),
         AdminCategory.hospitals => _HospitalsContent(),
         AdminCategory.bugReports => _BugReportsContent(),
       },
@@ -768,6 +771,14 @@ class _PostsContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const AdminPostApprovalSection();
+  }
+}
+
+/// 어드민 게시물 관리 콘텐츠 (정부 정책/기업 광고/플랫폼 소식 — 탐색 탭 배너용)
+class _AdminPostsContent extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return const AdminPostManagementSection();
   }
 }
 

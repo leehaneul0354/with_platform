@@ -14,6 +14,23 @@ class FirestoreCollections {
   static const String comments = 'comments';
   static const String likes = 'likes';
   static const String bugReports = 'bug_reports';
+  static const String adminPosts = 'admin_posts';
+}
+
+/// admin_posts 문서 필드 (정부 정책/기업 광고/플랫폼 소식 — 탐색 탭 배너용)
+class AdminPostKeys {
+  AdminPostKeys._();
+
+  static const String type = 'type'; // 'government' | 'ad' | 'platform'
+  static const String typeGovernment = 'government';
+  static const String typeAd = 'ad';
+  static const String typePlatform = 'platform';
+  static const String title = 'title';
+  static const String content = 'content';
+  static const String imageUrl = 'imageUrl';
+  static const String linkUrl = 'linkUrl';
+  static const String badgeText = 'badgeText';
+  static const String createdAt = 'createdAt';
 }
 
 /// recharges 문서 필드 (충전 내역)
