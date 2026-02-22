@@ -1,5 +1,5 @@
-// 목적: 마이페이지 — UI4.jpg 레이아웃 복원. 상단 산호 헤더·곡선 전환, 소형 프로필, 통계·위드페이 가로 카드, 고객센터 리스트 내 [후원 신청하기].
-// 흐름: 하단 네비 3번 탭. 후원 신청하기 권한 로직(비로그인/후원자/환자) 유지.
+// 목적: 마이페이지 — UI4.jpg 레이아웃 복원. 상단 산호 헤더·곡선 전환, 소형 프로필, 통계·위드페이 가로 카드, 고객센터 리스트 내 [버그 제보하기].
+// 흐름: 하단 네비 3번 탭. 버그 제보는 로그인 시 이용 가능.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -15,10 +15,10 @@ import '../../core/util/birth_date_util.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../../shared/widgets/role_badge.dart';
 import '../../shared/widgets/profile_avatar.dart';
+import '../../shared/widgets/bug_report_bottom_sheet.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
-import 'donation_request_screen.dart';
 import 'main_screen.dart';
 import 'account_info_screen.dart';
 import '../../core/navigation/app_navigator.dart';
@@ -1178,7 +1178,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  /// 고객센터 리스트 — [후원 신청하기] 리스트 아이템 크기로 첫 항목, 강조색 유지. 관리자일 때만 [관리자 시스템] 최상단 노출.
+  /// 고객센터 리스트 — [버그 제보하기] 리스트 아이템 크기로 첫 항목, 강조색 유지. 관리자일 때만 [관리자 시스템] 최상단 노출.
   Widget _buildCustomerCenterList(BuildContext context, bool isLoggedIn, bool isPatient) {
     final user = AuthRepository.instance.currentUser;
     final isAdmin = user?.type == UserType.admin;
@@ -1195,8 +1195,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
           ),
           const SizedBox(height: 8),
         ],
-        _DonationApplyTile(
-          onPressed: () => _onDonationApplyTap(context, isLoggedIn, isPatient),
+        _BugReportTile(
+          onPressed: () => _onBugReportTap(context, isLoggedIn),
         ),
         if (isLoggedIn) ...[
           _WithPayRechargeTile(
@@ -1244,39 +1244,18 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  void _onDonationApplyTap(BuildContext context, bool isLoggedIn, bool isPatient) {
+  void _onBugReportTap(BuildContext context, bool isLoggedIn) {
     if (!isLoggedIn) {
       LoginPromptDialog.show(
         context,
         title: '로그인이 필요합니다',
-        content: '후원 신청을 하시려면 로그인해 주세요.',
+        content: '버그 제보를 하시려면 로그인해 주세요.',
         onLoginTap: _handleLoginTap,
         onSignupTap: _handleSignupTap,
       );
       return;
     }
-    if (!isPatient) {
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('안내'),
-          content: const Text('환자 전용 기능입니다.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('확인'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    // CHECK: 페이지 연결성 확인 완료 — 마이페이지 [후원 신청하기] → 신청 폼 화면
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const DonationRequestScreen(),
-      ),
-    );
+    showBugReportBottomSheet(context);
   }
 }
 
@@ -1409,9 +1388,9 @@ class _WithPayRechargeTile extends StatelessWidget {
   }
 }
 
-/// 고객센터 리스트 내 [후원 신청하기] — 리스트 아이템과 동일 높이, Coral/Yellow 강조
-class _DonationApplyTile extends StatelessWidget {
-  const _DonationApplyTile({required this.onPressed});
+/// 고객센터 리스트 내 [버그 제보하기] — 리스트 아이템과 동일 높이, Coral 강조
+class _BugReportTile extends StatelessWidget {
+  const _BugReportTile({required this.onPressed});
 
   final VoidCallback onPressed;
 
@@ -1427,10 +1406,10 @@ class _DonationApplyTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             children: [
-              Icon(Icons.volunteer_activism, size: 22, color: AppColors.coral),
+              Icon(Icons.bug_report_outlined, size: 22, color: AppColors.coral),
               const SizedBox(width: 12),
               Text(
-                '후원 신청하기',
+                '버그 제보하기 🛠️',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,

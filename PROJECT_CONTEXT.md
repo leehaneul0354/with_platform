@@ -67,12 +67,14 @@
 | `lib/features/auth/signup_screen.dart` | SignupScreen (후원자/환자 선택 → 상세 정보 입력, AuthRepository.signUp) |
 | `lib/features/admin/admin_main_screen.dart` | AdminMainScreen. 가드, 헤더·로그아웃, 통계 카드, 회원 리스트·상세보기 |
 | `lib/features/admin/admin_member_detail_screen.dart` | 회원 상세: 기본정보·Trust Score·투병/후원 영역·인증 완료·저장 |
-| `lib/core/constants/firestore_keys.dart` | FirestorePostKeys(type/typeStruggle/typeThanks), ThankYouPostKeys, FirestoreCollections(thankYouPosts, todayThankYou) |
+| `lib/core/constants/firestore_keys.dart` | FirestorePostKeys, ThankYouPostKeys, BugReportKeys, FirestoreCollections(bugReports) |
 | `lib/core/services/imgbb_upload.dart` | ImgBB API 업로드. imgbbApiKey, readAsBytes→base64→POST, data.url 반환. [SYSTEM] 로그 |
 | `lib/core/services/with_pay_service.dart` | getWithPayBalance, withPayBalanceStream(userId별 캐시 1회 구독, _isInitialized 플래그로 중복 구독 방지), balanceFromSnapshot, rechargeWithPay, initializeWithPayService(), clearWithPayStreamCache() |
 | `lib/core/services/payment_method.dart` | PaymentMethod(card/kakao/naver/toss) enum |
 | `lib/core/services/payment_service.dart` | startPay(context, userId, amount, method) — PG 교체용 진입점, 현재 가상 결제 |
 | `lib/core/services/donation_service.dart` | platformStatsStream, processPaymentWithWithPay, donationsStreamByUser |
+| `lib/core/services/bug_report_service.dart` | imgbb API로 이미지 업로드(Storage 미사용). uploadBugReportImage, submitBugReport, updateBugReportStatus |
+| `lib/shared/widgets/bug_report_bottom_sheet.dart` | 버그 제보 ModalBottomSheet. 텍스트 입력·이미지 첨부(선택)·제출 로딩·성공 스낵바 |
 | `lib/features/main/with_pay_recharge_dialog.dart` | showWithPayRechargeDialog, RechargeScreen(충전 페이지) |
 | `lib/features/main/with_pay_payment_flow.dart` | showPaymentMethodSheet, PaymentWebViewMock, RechargeSuccessScreen |
 | `lib/features/main/explore_screen.dart` | 탐색 탭 — SliverGrid n×3 인스타 스타일. streamEnabled 시에만 스트림 구독, initState에서 _exploreStream 캐시 |
@@ -90,6 +92,8 @@
 | `lib/shared/widgets/today_thank_you_grid.dart` | 투데이 감사편지 그리드. StatefulWidget, initState에서 today_thank_you 스트림 캐시. isLikedStream 기반 하트 아이콘·탭 토글. |
 | `lib/features/main/thank_you_detail_screen.dart` | 감사편지 상세. 좋아요 아이콘 AppColors.coral 적용. |
 | `lib/features/admin/admin_dashboard_screen.dart` | 탭 [투병 기록 승인][감사 편지 승인]. 투병 기록: 필터(전체/일반/후원), 카드 배지(일반 기록·후원 요청), 상세 시트 상단 태그·후원 요약. 감사 편지 리스트 탭 시 AdminThankYouDetailScreen push |
+| `lib/features/admin/admin_main_screen.dart` | 사이드바: 플랫폼 대시보드, 사용자 관리, 후원 내역, 게시글 승인, 병원/기관, **버그 제보 관리** |
+| `lib/features/admin/admin_bug_report_management_section.dart` | bug_reports Firestore 스트림 리스트, 카드(상태 배지·내용·이미지 썸네일·기기정보), [해결 완료] 버튼 |
 | `lib/features/admin/admin_thank_you_detail_screen.dart` | 관리자 전용 감사 편지 상세 풀스크린. 진입 시 admin 재확인, 하단 [삭제][승인], 이미지/환자명/내용/사용목적 레이아웃 |
 | `lib/core/services/admin_service.dart` | deleteDocument(컬렉션 경로·docId), deletePost/deleteThankYouPost 래퍼, showDeleteConfirmDialog, approveThankYouPost |
 
@@ -102,7 +106,7 @@
   - 피드: 수직 스크롤 피드 카드 리스트. 카드 탭 → PostDetailScreen(후원하기 → WITH Pay 잔액 확인·차감·충전 유도).
   - 투데이: 오늘의 베스트 후원자 + 한줄 후기 감사편지(Firestore `today_thank_you` 실시간 스트림) 가로 스크롤
   - **하단 네비 5탭:** 홈 / 탐색(그리드) / 작성(권한별 다이어리) / 투데이(기부·감사편지) / 마이페이지. 마이페이지 탭 비로그인 시 로그인 유도. 작성 탭 비로그인 시 바텀시트 자동 노출.
-  - **마이페이지:** WITH Pay 카드(탭 시 충전 다이얼로그), 고객센터에 'WITH 페이 충전'·'전자기부금 영수증 발급' 메뉴 추가. 후원 신청하기(환자 전용), 계정 정보 등.
+  - **마이페이지:** WITH Pay 카드(탭 시 충전 다이얼로그), 고객센터에 '버그 제보하기'·'WITH 페이 충전'·'전자기부금 영수증 발급' 메뉴. 버그 제보는 로그인 시 바텀시트로 텍스트·이미지 첨부 후 Firestore bug_reports 저장.
 
 - **Web / Desktop**
   - 동일 헤더·후원 카드·토글
@@ -174,4 +178,4 @@
 
 ---
 
-*마지막 갱신: PlatformStatsCard·donation_service 초기 상태 롤백. platform_stats 스트림만 구독, 문서 없으면 0원 표시. donations 합산·타임아웃·모드 A/B·refreshTrigger 제거.*
+*마지막 갱신: 관리자 사이드바 '데이터베이스 구조' → '버그 제보 관리'. AdminBugReportManagementSection(StreamBuilder, 카드, 해결 완료 버튼).*

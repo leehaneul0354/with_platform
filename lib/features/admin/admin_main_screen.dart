@@ -14,7 +14,7 @@ import 'admin_member_detail_screen.dart';
 import 'admin_post_approval_section.dart';
 import 'admin_donation_management_section.dart';
 import 'admin_hospital_management_section.dart';
-import 'admin_database_structure_section.dart';
+import 'admin_bug_report_management_section.dart';
 
 /// 관리자 카테고리 타입
 enum AdminCategory {
@@ -23,7 +23,7 @@ enum AdminCategory {
   donations('후원 내역 관리', Icons.volunteer_activism_outlined),
   posts('게시글 승인', Icons.article_outlined),
   hospitals('병원/기관 관리', Icons.local_hospital_outlined),
-  databaseStructure('데이터베이스 구조', Icons.account_tree_outlined);
+  bugReports('버그 제보 관리 🛠️', Icons.bug_report);
 
   const AdminCategory(this.label, this.icon);
   final String label;
@@ -189,7 +189,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         AdminCategory.donations => _DonationsContent(),
         AdminCategory.posts => _PostsContent(),
         AdminCategory.hospitals => _HospitalsContent(),
-        AdminCategory.databaseStructure => _DatabaseStructureContent(),
+        AdminCategory.bugReports => _BugReportsContent(),
       },
     );
   }
@@ -779,10 +779,10 @@ class _HospitalsContent extends StatelessWidget {
   }
 }
 
-/// 데이터베이스 구조 시각화 콘텐츠
-class _DatabaseStructureContent extends StatelessWidget {
+/// 버그 제보 관리 콘텐츠
+class _BugReportsContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const AdminDatabaseStructureSection();
+    return const AdminBugReportManagementSection();
   }
 }

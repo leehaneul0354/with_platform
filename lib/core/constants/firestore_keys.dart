@@ -13,6 +13,7 @@ class FirestoreCollections {
   static const String todayThankYou = 'today_thank_you';
   static const String comments = 'comments';
   static const String likes = 'likes';
+  static const String bugReports = 'bug_reports';
 }
 
 /// recharges 문서 필드 (충전 내역)
@@ -150,6 +151,20 @@ class CommentKeys {
   static const String isSponsor = 'isSponsor';
   static const String postId = 'postId';
   static const String postType = 'postType'; // 'post' 또는 'thank_you'
+}
+
+/// bug_reports 문서 필드 (버그 제보)
+class BugReportKeys {
+  BugReportKeys._();
+
+  static const String userId = 'userId';
+  static const String content = 'content';
+  static const String imageUrl = 'imageUrl';
+  static const String status = 'status';
+  static const String statusPending = 'pending';
+  static const String statusResolved = 'resolved';
+  static const String createdAt = 'createdAt';
+  static const String deviceInfo = 'deviceInfo';
 }
 
 /// likes 문서 필드 (좋아요)
