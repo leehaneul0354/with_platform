@@ -1,10 +1,13 @@
 // 목적: 투데이 탭 '환자들의 감사편지' — today_thank_you 실시간 스트림, 2열 그리드, 카드 탭 시 상세 화면.
-// 흐름: 메인 스크롤/데스크톱에서 사용. 이미지 없으면 따뜻한 플레이스홀더, 카드 간격 8, BorderRadius 12.
+// 흐름: initState에서 스트림을 변수에 캐시 (중복 구독 방지).
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../features/auth/login_screen.dart';
+import '../../features/auth/signup_screen.dart';
+import 'login_prompt_dialog.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
@@ -12,7 +15,7 @@ import '../../core/services/like_service.dart';
 import '../../features/main/thank_you_detail_screen.dart';
 import 'brand_placeholder.dart';
 
-class TodayThankYouGrid extends StatelessWidget {
+class TodayThankYouGrid extends StatefulWidget {
   const TodayThankYouGrid({
     super.key,
     this.crossAxisCount = 2,
@@ -27,13 +30,26 @@ class TodayThankYouGrid extends StatelessWidget {
   final EdgeInsets padding;
 
   @override
+  State<TodayThankYouGrid> createState() => _TodayThankYouGridState();
+}
+
+class _TodayThankYouGridState extends State<TodayThankYouGrid> {
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedStream = FirebaseFirestore.instance
+        .collection(FirestoreCollections.todayThankYou)
+        .orderBy(ThankYouPostKeys.createdAt, descending: true)
+        .limit(20)
+        .snapshots();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(FirestoreCollections.todayThankYou)
-          .orderBy(ThankYouPostKeys.createdAt, descending: true)
-          .limit(20)
-          .snapshots(),
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _cachedStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -69,15 +85,15 @@ class TodayThankYouGrid extends StatelessWidget {
           );
         }
         return Padding(
-          padding: padding,
+          padding: widget.padding,
           child: GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              childAspectRatio: childAspectRatio,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
+              crossAxisCount: widget.crossAxisCount,
+              childAspectRatio: widget.childAspectRatio,
+              crossAxisSpacing: widget.spacing,
+              mainAxisSpacing: widget.spacing,
             ),
             itemCount: docs.length,
             itemBuilder: (context, index) {
@@ -212,7 +228,16 @@ class _ThankYouGridCard extends StatelessWidget {
                                     GestureDetector(
                                       onTap: () async {
                                         final uid = AuthRepository.instance.currentUser?.id;
-                                        if (uid == null) return;
+                                        if (uid == null) {
+                                          LoginPromptDialog.showAsBottomSheet(
+                                            context,
+                                            title: '로그인이 필요합니다',
+                                            content: '좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.',
+                                            onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+                                            onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
+                                          );
+                                          return;
+                                        }
                                         await toggleLike(
                                           postId: postId,
                                           postType: 'thank_you',

@@ -4,6 +4,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../features/auth/login_screen.dart';
+import '../../features/auth/signup_screen.dart';
+import 'login_prompt_dialog.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/comment_service.dart';
@@ -41,8 +44,12 @@ class _CommentSectionState extends State<CommentSection> {
     final user = AuthRepository.instance.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인 후 댓글을 작성할 수 있습니다.')),
+      LoginPromptDialog.showAsBottomSheet(
+        context,
+        title: '로그인이 필요합니다',
+        content: '댓글을 작성하시려면 로그인 또는 회원가입을 해 주세요.',
+        onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+        onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
       );
       return;
     }

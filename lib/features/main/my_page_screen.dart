@@ -1198,7 +1198,25 @@ class _MyPageScreenState extends State<MyPageScreen> {
         _DonationApplyTile(
           onPressed: () => _onDonationApplyTap(context, isLoggedIn, isPatient),
         ),
-        if (isLoggedIn)
+        if (isLoggedIn) ...[
+          _WithPayRechargeTile(
+            onTap: () {
+              final userId = AuthRepository.instance.currentUser?.id;
+              if (userId != null) {
+                showWithPayRechargeDialog(context, userId);
+              }
+            },
+          ),
+          _MenuTile(
+            icon: Icons.receipt_long_outlined,
+            label: '전자기부금 영수증 발급',
+            onTap: () {
+              // 추후 전자기부금 영수증 발급 화면 연결
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('준비 중인 기능입니다.')),
+              );
+            },
+          ),
           _MenuTile(
             icon: Icons.account_circle_outlined,
             label: '계정 정보',
@@ -1208,6 +1226,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
               );
             },
           ),
+        ],
         _MenuTile(icon: Icons.person_outline, label: '개인정보 수집 및 이용', onTap: () {}),
         _MenuTile(icon: Icons.description_outlined, label: '서비스 이용 약관', onTap: () {}),
         _MenuTile(icon: Icons.code, label: '오픈소스 라이선스', onTap: () {}),
@@ -1344,6 +1363,44 @@ class _AdminSystemTile extends StatelessWidget {
               ),
               const Spacer(),
               Icon(Icons.chevron_right, size: 22, color: AppColors.textPrimary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 고객센터 리스트 내 [WITH 페이 충전] — 노란색 강조
+class _WithPayRechargeTile extends StatelessWidget {
+  const _WithPayRechargeTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.yellow.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(Icons.account_balance_wallet, size: 22, color: AppColors.textPrimary),
+              const SizedBox(width: 12),
+              Text(
+                'WITH 페이 충전',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
             ],
           ),
         ),

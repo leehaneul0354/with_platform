@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/donation_service.dart';
 import '../../widgets/main_visual_card.dart';
+import '../../core/constants/firestore_keys.dart';
 
 /// platform_stats의 totalDonation을 실시간으로 표시하는 핑크 카드. 문서 없으면 0원.
 class PlatformStatsCard extends StatelessWidget {

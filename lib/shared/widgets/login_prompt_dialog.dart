@@ -37,6 +37,90 @@ class LoginPromptDialog extends StatelessWidget {
     );
   }
 
+  /// 바텀시트 형태로 로그인 유도 (작성 탭 등에서 비로그인 시 사용)
+  static Future<void> showAsBottomSheet(
+    BuildContext context, {
+    String? title,
+    String? content,
+    VoidCallback? onLoginTap,
+    VoidCallback? onSignupTap,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title ?? '로그인이 필요합니다',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                content ?? '해당 기능을 이용하시려면 로그인 또는 회원가입을 해 주세요.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('취소'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        onLoginTap?.call();
+                      },
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('로그인'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        onSignupTap?.call();
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.yellow),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('회원가입'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(

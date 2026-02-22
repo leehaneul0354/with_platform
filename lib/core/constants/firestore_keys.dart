@@ -41,6 +41,8 @@ class PlatformStatsKeys {
   PlatformStatsKeys._();
 
   static const String totalDonation = 'totalDonation';
+  /// platform_stats/today 문서용 — 오늘의 총 모금액
+  static const String totalAmount = 'total_amount';
   static const String totalSupporters = 'totalSupporters';
   static const String activeProjects = 'activeProjects';
 }

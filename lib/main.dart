@@ -27,14 +27,14 @@ void main() async {
     // Firebase 초기화 실패 시에도 앱은 계속 실행 (에러 페이지 표시 가능)
   }
 
-  // Firestore 설정: 웹 환경에서 캐시 충돌 방지
-  // persistenceEnabled: false로 설정하여 웹 환경에서 캐시 충돌 방지
+  // Firestore 설정: 웹 환경 ca9·b815 에러 방지 (IndexedDB 캐시 충돌이 주원인)
+  // persistenceEnabled: false 필수 — 웹에서 IndexedDB 캐시 충돌 방지
   try {
     FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: false, // 웹 환경에서 캐시 충돌 방지
+      persistenceEnabled: false,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-    debugPrint('[SYSTEM] : Firestore 설정 완료 - persistenceEnabled: false (웹 환경 캐시 충돌 방지)');
+    debugPrint('[SYSTEM] : Firestore 설정 - persistenceEnabled: false (웹 ca9/b815 방지)');
   } catch (e) {
     debugPrint('[SYSTEM] : Firestore 설정 실패 - $e');
     // 설정 실패 시에도 기본 설정으로 계속 진행

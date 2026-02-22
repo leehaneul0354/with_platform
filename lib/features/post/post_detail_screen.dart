@@ -14,6 +14,9 @@ import '../../core/services/with_pay_service.dart';
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
 import '../../shared/widgets/comment_section.dart';
+import '../../shared/widgets/login_prompt_dialog.dart';
+import '../auth/login_screen.dart';
+import '../auth/signup_screen.dart';
 import '../main/with_pay_recharge_dialog.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -36,13 +39,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   static const List<int> _amountPresets = [10000, 30000, 50000, 100000];
 
+  void _showLoginSheet(String message) {
+    LoginPromptDialog.showAsBottomSheet(
+      context,
+      title: '로그인이 필요합니다',
+      content: message,
+      onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+      onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
+    );
+  }
+
   Future<void> _onDonateTap() async {
     final user = AuthRepository.instance.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인 후 후원할 수 있습니다.')),
-      );
+      _showLoginSheet('후원을 진행하시려면 로그인 또는 회원가입을 해 주세요.');
       return;
     }
     final title = widget.data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
@@ -326,9 +337,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                             final user = AuthRepository.instance.currentUser;
                                             if (user == null) {
                                               if (!mounted) return;
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('로그인 후 좋아요를 누를 수 있습니다.')),
-                                              );
+                                              _showLoginSheet('좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.');
                                               return;
                                             }
                                             await toggleLike(

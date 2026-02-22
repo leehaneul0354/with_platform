@@ -139,6 +139,13 @@ class DonorRankListFromFirestore extends StatefulWidget {
 class _DonorRankListFromFirestoreState extends State<DonorRankListFromFirestore> {
   List<({String userId, int totalAmount})> _topDonors = [];
   final Map<String, String> _nicknames = {};
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedStream = recentDonationsStream(limit: 80);
+  }
 
   Future<void> _fetchNicknames(List<String> userIds) async {
     if (userIds.isEmpty) return;
@@ -160,7 +167,7 @@ class _DonorRankListFromFirestoreState extends State<DonorRankListFromFirestore>
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: recentDonationsStream(limit: 80),
+      stream: _cachedStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Card(

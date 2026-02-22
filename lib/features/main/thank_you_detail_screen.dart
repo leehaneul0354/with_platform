@@ -12,6 +12,9 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/login_prompt_dialog.dart';
+import '../auth/login_screen.dart';
+import '../auth/signup_screen.dart';
 import '../../shared/widgets/comment_section.dart';
 import '../../shared/widgets/user_profile_avatar.dart';
 import '../post/post_detail_screen.dart';
@@ -197,8 +200,12 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
                                   final user = AuthRepository.instance.currentUser;
                                   if (user == null) {
                                     if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('로그인 후 좋아요를 누를 수 있습니다.')),
+                                    LoginPromptDialog.showAsBottomSheet(
+                                      context,
+                                      title: '로그인이 필요합니다',
+                                      content: '좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.',
+                                      onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+                                      onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
                                     );
                                     return;
                                   }

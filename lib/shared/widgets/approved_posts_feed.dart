@@ -1,6 +1,9 @@
 // 목적: Firestore 'posts' 중 status=='approved'만 최신순으로 실시간 스트림, 피드 카드 리스트.
 // 흐름: 메인 피드 탭 선택 시 MainContentMobile/Desktop에서 사용. 빈 상태·로딩·에러 처리.
 // 캐시: 동시 구독 병목 방지를 위해 승인 피드 스트림은 앱 전역에서 1회만 생성.
+// 로딩: 스켈레톤 카드 최소 2개, 3초 타임아웃 시 새로고침 안내.
+
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +12,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../features/post/post_detail_screen.dart';
 import 'story_feed_card.dart';
+import 'shimmer_placeholder.dart';
 
 Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedApprovedPostsStream;
 bool _approvedPostsStreamLogDone = false;
@@ -168,11 +172,15 @@ class ApprovedPostsFeedSliver extends StatefulWidget {
 
 class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
   int _retryKey = 0; // 재시도 시 스트림 재구독을 위한 키
+  bool _loadTimeout = false; // 3초 타임아웃 시 true
+  Timer? _timeoutTimer;
 
   void _retry() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
     setState(() {
       _retryKey++;
-      // 스트림 캐시 리셋 및 재초기화
+      _loadTimeout = false;
       clearApprovedPostsStreamCache();
       initializeApprovedPostsStream(force: true);
       debugPrint('[SYSTEM] : 피드 스트림(Sliver) 재시도 버튼 클릭 - 키: $_retryKey');
@@ -180,28 +188,74 @@ class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
   }
 
   @override
+  void dispose() {
+    _timeoutTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 로딩 타임아웃 시 표시할 UI
+  Widget _buildTimeoutRetryUi() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '데이터를 불러올 수 없습니다. 다시 시도해주세요',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _retry,
+              child: const Text('새로고침'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 스켈레톤 카드 최소 2개 (무한 루프처럼 보이지 않게)
+  Widget _buildSkeletonSliver() {
+    return SliverPadding(
+      padding: const EdgeInsets.only(top: 8, bottom: 24),
+      sliver: SliverList(
+        delegate: SliverChildListDelegate([
+          _FeedSkeletonCard(),
+          _FeedSkeletonCard(),
+        ]),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      key: ValueKey(_retryKey), // 재시도 시 스트림 재구독
+      key: ValueKey(_retryKey),
       stream: _approvedPostsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          debugPrint('[SYSTEM] : 피드 스트림 에러: ${snapshot.error}');
+          _timeoutTimer?.cancel();
+          _timeoutTimer = null;
+          debugPrint('[SYSTEM] : 피드 스트림 에러 - ${snapshot.error}');
+          debugPrint('[SYSTEM] : 피드 스트림 에러 스택 - ${snapshot.stackTrace}');
           return SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '목록을 불러오는 중 오류가 발생했습니다.',
+                    '데이터를 불러올 수 없습니다. 다시 시도해주세요',
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _retry,
-                    child: const Text('다시 시도'),
+                    child: const Text('새로고침'),
                   ),
                 ],
               ),
@@ -209,12 +263,15 @@ class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
           );
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
+          // 3초 타임아웃 타이머
+          if (!_loadTimeout) {
+            _timeoutTimer?.cancel();
+            _timeoutTimer = Timer(const Duration(seconds: 3), () {
+              if (mounted) setState(() => _loadTimeout = true);
+            });
+          }
+          if (_loadTimeout) return _buildTimeoutRetryUi();
+          return _buildSkeletonSliver();
         }
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
@@ -235,6 +292,9 @@ class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
             ),
           );
         }
+        _timeoutTimer?.cancel();
+        _timeoutTimer = null;
+        _loadTimeout = false;
         return SliverPadding(
           padding: const EdgeInsets.only(top: 8, bottom: 24),
           sliver: SliverList(
@@ -249,6 +309,42 @@ class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
           ),
         );
       },
+    );
+  }
+}
+
+/// 피드 로딩용 스켈레톤 카드 (무한 루프처럼 보이지 않게 2개만 표시)
+class _FeedSkeletonCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                ShimmerPlaceholder(height: 36, width: 36, borderRadius: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ShimmerPlaceholder(height: 16, borderRadius: 8),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ShimmerPlaceholder(height: 160, borderRadius: 12),
+            const SizedBox(height: 12),
+            ShimmerPlaceholder(height: 18, borderRadius: 6),
+            const SizedBox(height: 8),
+            ShimmerPlaceholder(height: 14, width: 200, borderRadius: 6),
+          ],
+        ),
+      ),
     );
   }
 }

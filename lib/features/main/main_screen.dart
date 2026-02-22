@@ -25,7 +25,10 @@ import 'main_content_desktop.dart';
 import 'profile_edit_screen.dart';
 import 'main_content_mobile.dart';
 import 'my_page_screen.dart';
+import 'diary_screen.dart';
+import 'explore_screen.dart';
 import 'post_create_choice_screen.dart';
+import 'today_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -40,59 +43,56 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
   /// 통신 지연/갱신 중에도 관리자 UI 유지. 로그아웃 시에만 false로 리셋.
   bool _lastKnownAdmin = false;
 
+  /// 워터폴 로딩: 탭별 스트림 구독 시차 (Firestore ca9/b815 충돌 방지)
+  bool _isStreamTab0Ready = false; // 홈 피드 (500ms)
+  bool _isStreamTab1Ready = false; // 탐색 (1000ms)
+  bool _isStreamTab3Ready = false; // 투데이 (1500ms)
+
   @override
   void initState() {
     super.initState();
-    // 로그아웃 후 상태 초기화를 위해 user 상태 확인
-    // 주의: ensureAuthSync는 로그아웃 중에는 실행되지 않음 (AuthRepository에서 차단됨)
+    _scheduleWaterfallStreamInit();
+  }
+
+  /// 워터폴: 탭 0(500ms) → 탭 1(1000ms) → 탭 3(1500ms) 순차 스트림 활성화
+  void _scheduleWaterfallStreamInit() {
+    debugPrint('🚩 [LOG] 워터폴 로딩 시작: 홈 탭');
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      
-      // 유저가 null이면 어떤 데이터 로드도 하지 않음 (로그아웃 후 세션 부활 방지)
       final user = AuthRepository.instance.currentUser;
       if (user == null) {
-        debugPrint('🚩 [LOG] MainScreen - 유저가 null이므로 모든 데이터 로드 스킵 (세션 부활 방지)');
+        debugPrint('🚩 [LOG] MainScreen - 유저 null, 동기화 스킵 (탭 인덱스 유지)');
         _lastKnownAdmin = false;
-        _bottomIndex = 0;
-        // 유저가 null일 때는 ensureAuthSync를 절대 호출하지 않음
-        // 이렇게 해야 로그아웃 후 SharedPreferences에서 데이터를 다시 읽어오는 것을 방지
       } else {
-        // 유저가 있을 때만 동기화 실행 (로그아웃 중이 아닐 때만)
         if (!AuthRepository.instance.isLoggingOut) {
           await AuthRepository.instance.ensureAuthSync();
           if (!mounted) return;
-        } else {
-          debugPrint('🚩 [LOG] MainScreen - 로그아웃 진행 중이므로 ensureAuthSync 스킵');
         }
       }
-      
-      // 피드 스트림 초기화 확인 및 강제 초기화 (안정성 강화)
       try {
         initializeApprovedPostsStream(force: false);
-        debugPrint('🚩 [LOG] MainScreen - 피드 스트림 초기화 확인 완료');
       } catch (e) {
-        debugPrint('🚩 [LOG] MainScreen - 피드 스트림 초기화 실패, 재시도: $e');
         await Future.delayed(const Duration(milliseconds: 200));
         try {
           initializeApprovedPostsStream(force: true);
-          debugPrint('🚩 [LOG] MainScreen - 피드 스트림 강제 초기화 완료');
-        } catch (e2) {
-          debugPrint('🚩 [LOG] MainScreen - 피드 스트림 강제 초기화 실패: $e2');
-        }
+        } catch (_) {}
       }
-      
-      // 스트림 구독 순차 지연: 피드 데이터 → 잔액 스트림 순서로 로드 (Firestore 충돌 방지)
-      // 1단계: 피드 데이터 스트림 준비 (300ms 지연)
-      await Future.delayed(const Duration(milliseconds: 300));
+      // 탭 0: 500ms
+      await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      setState(() => _phaseFeedReady = true);
-      debugPrint('🚩 [LOG] MainScreen - 피드 데이터 스트림 준비 완료');
-      
-      // 2단계: 통계/잔액 스트림 준비 (추가 300ms 지연 - 총 600ms)
-      await Future.delayed(const Duration(milliseconds: 300));
+      setState(() {
+        _phaseFeedReady = true;
+        _isStreamTab0Ready = true;
+      });
+      // 탭 1: 1000ms (추가 500ms)
+      await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      setState(() => _phaseStatsReady = true);
-      debugPrint('🚩 [LOG] MainScreen - 통계/잔액 스트림 준비 완료');
+      setState(() => _isStreamTab1Ready = true);
+      // 탭 3: 1500ms (추가 500ms)
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      setState(() => _isStreamTab3Ready = true);
+      debugPrint('🚩 [LOG] Firestore 엔진 안정화 및 시차 로딩 적용 완료');
     });
   }
 
@@ -112,19 +112,23 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
   }
 
   void _onBottomTab(int index) {
-    // 일반 유저의 경우: 홈(0), 사연등록(1), 마이페이지(2)
-    // 관리자의 경우: 홈(0), 컨트롤타워(1), 추가(2), 마이페이지(3), 관리자설정(4)
+    // 일반 유저: 홈(0), 탐색(1), 작성(2), 투데이(3), 마이페이지(4)
+    // 관리자: 홈(0), 컨트롤타워(1), 추가(2), 마이페이지(3), 관리자설정(4)
     
     if (_isAdmin) {
-      // 관리자 탭 처리 (5개 탭)
       _handleAdminTab(index);
     } else {
-      // 일반 유저 탭 처리 (3개 탭)
+      // 일반 유저 5탭 처리
       switch (index) {
         case 0: // 홈
-          setState(() => _bottomIndex = 0);
+          setState(() => _bottomIndex = index);
           break;
-        case 1: // 사연등록 - 즉시 처리
+        case 1: // 탐색
+        case 2: // 작성
+        case 3: // 투데이
+          setState(() => _bottomIndex = index);
+          break;
+        case 4: // 마이페이지
           if (!_isLoggedIn) {
             LoginPromptDialog.show(
               context,
@@ -133,21 +137,7 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
             );
             return;
           }
-          // PostCreateChoiceScreen으로 즉시 이동
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const PostCreateChoiceScreen()),
-          );
-          break;
-        case 2: // 마이페이지
-          if (!_isLoggedIn) {
-            LoginPromptDialog.show(
-              context,
-              onLoginTap: _navigateToLogin,
-              onSignupTap: _navigateToSignup,
-            );
-            return;
-          }
-          setState(() => _bottomIndex = 2);
+          setState(() => _bottomIndex = 4);
           break;
       }
     }
@@ -251,9 +241,8 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
     // 추후 후원 플로우
   }
 
-  /// 폭포수형 로딩: 유저 확인 → 300ms → 피드 허용 → 300ms → 잔액/후원 현황 허용 (동시 구독 병목 방지)
+  /// 폭포수형 로딩: 유저 확인 → 피드 허용 → 탭별 스트림 시차 (동시 구독 병목 방지)
   bool _phaseFeedReady = false;
-  bool _phaseStatsReady = false;
 
   @override
   void didChangeDependencies() {
@@ -320,21 +309,42 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
     });
   }
 
-  /// IndexedStack의 인덱스 계산
-  /// 홈(0)과 마이페이지만 IndexedStack에 포함, 나머지는 Navigator.push로 처리
+  /// IndexedStack/화면 인덱스 매핑
+  /// 일반 유저: 0=홈, 1=탐색, 2=작성, 3=투데이, 4=마이페이지
+  /// 관리자: 0=홈, 1=마이페이지 (나머지는 Navigator.push)
   int _getIndexedStackIndex() {
     if (_isAdmin) {
-      // 관리자: 홈(0) 또는 마이페이지(3)일 때만 IndexedStack 사용
       return _bottomIndex == 3 ? 1 : 0;
-    } else {
-      // 일반 유저: 홈(0) 또는 마이페이지(2)일 때만 IndexedStack 사용
-      return _bottomIndex == 2 ? 1 : 0;
     }
+    return _bottomIndex;
   }
 
-  /// IndexedStack의 children 동적 생성 (홈, 마이페이지만 포함)
-  List<Widget> _buildIndexedStackChildren() {
-    final homeScreen = ResponsiveLayout(
+  /// 일반 유저 5탭 children — 스트림 시차 플래그 전달 (워터폴)
+  List<Widget> _buildUserTabChildren() {
+    return [
+      KeyedSubtree(
+        key: ValueKey(_isStreamTab0Ready),
+        child: _buildHomeContent(),
+      ),
+      ExploreScreen(streamEnabled: _isStreamTab1Ready),
+      DiaryScreen(
+        onLoginTap: _navigateToLogin,
+        onSignupTap: _navigateToSignup,
+      ),
+      TodayScreen(streamEnabled: _isStreamTab3Ready),
+      MyPageScreen(
+        onLoginTap: _navigateToLogin,
+        onSignupTap: _navigateToSignup,
+        onLogout: () {
+          if (mounted) setState(() => _bottomIndex = 0);
+        },
+      ),
+    ];
+  }
+
+  /// 홈 콘텐츠 위젯
+  Widget _buildHomeContent() {
+    return ResponsiveLayout(
       mobileChild: _buildMobileHomeScroll(),
       desktopChild: Column(
         children: [
@@ -372,26 +382,32 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
       ),
     );
 
-    final myPageScreen = MyPageScreen(
-      onLoginTap: _navigateToLogin,
-      onSignupTap: _navigateToSignup,
-      onLogout: () {
-        if (mounted) setState(() => _bottomIndex = 0);
-      },
-    );
+  }
 
-    return [homeScreen, myPageScreen];
+  /// IndexedStack의 children — 일반 유저 5탭 / 관리자 2탭
+  List<Widget> _buildIndexedStackChildren() {
+    if (_isAdmin) {
+      return [
+        KeyedSubtree(
+          key: ValueKey(_isStreamTab0Ready),
+          child: _buildHomeContent(),
+        ),
+        MyPageScreen(
+          onLoginTap: _navigateToLogin,
+          onSignupTap: _navigateToSignup,
+          onLogout: () {
+            if (mounted) setState(() => _bottomIndex = 0);
+          },
+        ),
+      ];
+    }
+    return _buildUserTabChildren();
   }
 
 
-  /// BottomNavigationBar의 currentIndex 계산. _isAdmin이 true면 무조건 5탭 구간(0~4) 유지
+  /// BottomNavigationBar의 currentIndex 계산
   int _getBottomNavIndex() {
-    if (_isAdmin) {
-      return _bottomIndex.clamp(0, 4);
-    } else {
-      // 일반 유저: 0~2 범위
-      return _bottomIndex.clamp(0, 2);
-    }
+    return _bottomIndex.clamp(0, 4);
   }
 
   /// 모바일 홈: 노란 바만 pinned, 핑크 카드·피드까지 한 번에 스크롤 (CustomScrollView + SliverAppBar).
@@ -431,18 +447,11 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: _phaseStatsReady
-                    ? PlatformStatsCard(
-                        subtitle: _isLoggedIn
-                            ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
-                            : '반갑습니다',
-                      )
-                    : const SizedBox(
-                        height: 100,
-                        child: Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
+                child: PlatformStatsCard(
+                  subtitle: _isLoggedIn
+                      ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
+                      : '반갑습니다',
+                ),
               ),
               const SizedBox(height: 8),
               TodayFeedToggle(
@@ -501,29 +510,12 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
-    // 로그아웃 후 user가 null인 경우 상태 강제 리셋
-    final currentUser = AuthRepository.instance.currentUser;
-    debugPrint('🚩 [LOG] MainScreen 빌드됨 - 유저 ID: ${currentUser?.id ?? "null"}, 닉네임: ${currentUser?.nickname ?? "null"}');
-    
-    if (currentUser == null) {
-      debugPrint('🚩 [LOG] MainScreen - 유저가 null임. 상태 리셋 필요');
-      // 로그아웃된 상태: 관리자 상태 및 탭 인덱스 리셋
-      if (_lastKnownAdmin || _bottomIndex != 0) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            debugPrint('🚩 [LOG] MainScreen - 상태 리셋 실행: _lastKnownAdmin=false, _bottomIndex=0');
-            setState(() {
-              _lastKnownAdmin = false;
-              _bottomIndex = 0;
-            });
-          }
-        });
-      }
-    }
-    
+    // 탭 인덱스는 _onBottomTab에서만 제어. build() 내 유저 null 시 리다이렉트 제거 (튕김 방지)
     final isMobile = ResponsiveHelper.isMobile(context);
-    // 모바일 + 홈(0)일 때만 appBar를 비워서, body 내 SliverAppBar(노란 헤더) 하나만 보이게 함. 이중 AppBar 방지.
+    // 홈(0): body 내 SliverAppBar. Explore/Diary/Today(1,2,3): 자체 AppBar. 마이페이지(4): CurvedYellowHeader.
     final showHeaderInBody = isMobile && _bottomIndex == 0;
+    final isMyPageTab = (_bottomIndex == 4 && !_isAdmin) || (_bottomIndex == 3 && _isAdmin);
+    final showMainAppBar = !showHeaderInBody && isMyPageTab;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -533,12 +525,12 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
         );
       },
       child: Scaffold(
-        appBar: showHeaderInBody
-            ? null
-            : CurvedYellowHeader(
+        appBar: showMainAppBar
+            ? CurvedYellowHeader(
                 isLoggedIn: _isLoggedIn,
                 onPersonTap: _isLoggedIn ? _navigateToProfileEdit : _navigateToLogin,
-              ),
+              )
+            : null,
         body: SafeArea(
           top: !showHeaderInBody, // 모바일 홈일 때는 SliverAppBar가 있으므로 top false
           bottom: true,
