@@ -32,6 +32,7 @@
   - **홈 화면 무한 로딩 탈출 및 0원 노출 차단:** (1) `MainScreen` — 홈 콘텐츠에 `KeyedSubtree(key: ValueKey(_isStreamTab0Ready))`로 `_isStreamTab0Ready` 변경 시 강제 리빌드, 워터폴 시작 시 `🚩 [LOG] 워터폴 로딩 시작: 홈 탭` 로그. (2) `PlatformStatsCard` — 로딩/waiting/!hasData 시 ShimmerPlaceholder만 표시(0원 절대 노출). (3) `ApprovedPostsFeedSliver` — 3초 타임아웃 시 "데이터를 불러올 수 없습니다. 다시 시도해주세요" + [새로고침], 로딩 중 스켈레톤 카드 2개 표시, 에러 시 로그 및 따뜻한 안내. (4) `ShimmerPlaceholder` — 0원 대체용 회색 애니메이션 플레이스홀더(opacity 0.35~0.65 반복).
   - **소셜 로그인 UI 완성 및 구글 인증 연동:** 한국형 소셜 서비스 스타일에 맞게 로그인 화면 고도화. (1) `login_screen.dart` — 기존 로그인 버튼 하단에 "또는 소셜 계정으로 로그인" 안내 문구와 구분선 추가, 카카오톡/구글/네이버 원형 아이콘 버튼 3개 가로 정렬(구글은 브랜드 컬러 #4285F4, 카카오/네이버는 회색 톤), 카카오/네이버 버튼 클릭 시 "서비스 준비 중입니다" SnackBar 표시, 중복 클릭 방지 플래그(`_isLoggingInGoogle`) 추가. (2) `auth_repository.dart` — `google_sign_in` 패키지를 사용한 `signInWithGoogle()` 메서드 구현, 구글 로그인 성공 시 Firestore `users` 컬렉션에 자동 저장/업데이트(기존 유저는 정보 업데이트, 신규 유저는 생성), 신규 유저는 기본 `role`을 `viewer`로 설정하여 온보딩 필요 상태 표시, 프로필 이미지(photoUrl) 자동 저장, 로그인 성공 시 스트림 서비스 초기화. (3) `pubspec.yaml` — `google_sign_in: ^6.2.1`, `intl: ^0.19.0` 패키지 추가. (4) `web/index.html` — 구글 클라이언트 ID 메타 태그 추가.
   - **구글 로그인 기반 사용자 온보딩 시스템:** 구글 로그인 후 필수 정보 수집을 위한 스마트 온보딩 구현. (1) `user_model.dart` — `hasRequiredOnboardingInfo` getter 추가(생년월일 필수, 회원 유형은 viewer 포함 모든 타입 허용). (2) `additional_info_screen.dart` — 신규 유저 또는 필수 정보 누락 유저를 위한 추가 정보 입력 화면 생성, 생년월일 DatePicker(한국어 로케일, 코랄 테마), 회원 유형 선택(환자/후원자/일반회원) 카드형 UI, 정보 저장 후 메인 화면으로 이동. (3) `auth_repository.dart` — `updateUserOnboardingInfo()` 메서드 추가(생년월일, 회원 유형 업데이트), `signInWithGoogle()` 수정(신규 유저는 기본 role을 viewer로 설정, 생년월일 없음으로 초기화). (4) `login_screen.dart` — 구글 로그인 성공 후 `hasRequiredOnboardingInfo` 체크, 필수 정보 누락 시 `AdditionalInfoScreen`으로 리다이렉트, 필수 정보 완료 시 메인 화면으로 이동.
+  - **Firestore imageUrls gs:// URL 지원:** Firestore에 `gs://...` 형태로 저장된 이미지 URL을 앱에서 HTTPS 다운로드 URL로 변환해 표시. (1) `gs_url_resolver.dart` — `resolveImageUrl(url)`로 gs:// → `FirebaseStorage.refFromURL().getDownloadURL()` 변환, 메모리 캐시(`_gsToHttpsCache`)로 재요청 방지. (2) `cached_network_image_gs.dart` — gs:///https 공통 `CachedNetworkImage` 래퍼 `CachedNetworkImageGs`(placeholder/errorWidget 지원). (3) 탐색 탭 `ExploreScreen` 그리드 타일, 상세 `PostDetailScreen` 이미지 목록에서 `CachedNetworkImage` → `CachedNetworkImageGs`로 교체하여 gs:// 자동 처리.
 
 ---
 
@@ -77,14 +78,14 @@
 | `lib/shared/widgets/bug_report_bottom_sheet.dart` | 버그 제보 ModalBottomSheet. 텍스트 입력·이미지 첨부(선택)·제출 로딩·성공 스낵바 |
 | `lib/features/main/with_pay_recharge_dialog.dart` | showWithPayRechargeDialog, RechargeScreen(충전 페이지) |
 | `lib/features/main/with_pay_payment_flow.dart` | showPaymentMethodSheet, PaymentWebViewMock, RechargeSuccessScreen |
-| `lib/features/main/explore_screen.dart` | 탐색 탭 — SliverGrid n×3 인스타 스타일. streamEnabled 시에만 스트림 구독, initState에서 _exploreStream 캐시 |
+| `lib/features/main/explore_screen.dart` | 탐색 탭 — SliverGrid n×3 인스타 스타일. streamEnabled 시에만 스트림 구독, initState에서 _exploreStream 캐시. 그리드 타일 이미지에 CachedNetworkImageGs(gs:// 지원). |
 | `lib/features/main/diary_screen.dart` | 작성 탭 — 환자(투병/감사편지/내 게시물), 후원자(후원 중인 환자 목록→PatientPostsListScreen), 비로그인(바텀시트) |
 | `lib/features/main/today_screen.dart` | 투데이 탭 — streamEnabled 시에만 DonorRankList·TodayThankYouGrid 렌더, 실시간 기부 순위 + 베스트 감사편지 |
 | `lib/features/main/post_create_choice_screen.dart` | 게시글 작성 선택: 투병 기록 남기기 → PostUploadScreen / 감사 편지 쓰기 → ThankYouPostListScreen (관리자 대시보드 진입 포함) |
 | `lib/features/main/thank_you_post_list_screen.dart` | 현재 유저의 승인된 투병 기록 목록, 선택 시 ThankYouLetterUploadScreen |
 | `lib/features/main/thank_you_letter_upload_screen.dart` | 감사 편지 폼(제목·내용·사진 0~3장) → thank_you_posts 저장 |
 | `lib/features/post/post_upload_screen.dart` | 투병 기록: 제목/내용(20자 이상)/사진(0~3장), type struggle, "검토 후 업로드됩니다." |
-| `lib/features/post/post_detail_screen.dart` | 승인된 사연 상세. isDonationRequest일 때만 후원하기 버튼·usagePurpose 블록 노출. 좋아요 아이콘 coral. |
+| `lib/features/post/post_detail_screen.dart` | 승인된 사연 상세. isDonationRequest일 때만 후원하기 버튼·usagePurpose 블록 노출. 좋아요 아이콘 coral. 이미지 목록에 CachedNetworkImageGs(gs:// 지원). |
 | `lib/shared/widgets/story_feed_card.dart` | 피드 카드. isLikedStream 기반 빈하트/채운하트(coral), 하트 탭 시 toggleLike. |
 | `lib/shared/widgets/approved_posts_feed.dart` | 승인 피드 스트림 전역 캐시. ApprovedPostsFeedSliver: 스켈레톤 2개, 3초 타임아웃 시 새로고침 안내, 에러 로그 |
 | `lib/shared/widgets/shimmer_placeholder.dart` | ShimmerPlaceholder — 로딩 중 0원 노출 차단용 회색 애니메이션(opacity 0.35~0.65 반복) |
@@ -98,6 +99,8 @@
 | `lib/features/admin/admin_bug_report_management_section.dart` | bug_reports Firestore 스트림 리스트, 카드(상태 배지·내용·이미지 썸네일·기기정보), [해결 완료] 버튼 |
 | `lib/features/admin/admin_thank_you_detail_screen.dart` | 관리자 전용 감사 편지 상세 풀스크린. 진입 시 admin 재확인, 하단 [삭제][승인], 이미지/환자명/내용/사용목적 레이아웃 |
 | `lib/core/services/admin_service.dart` | deleteDocument(컬렉션 경로·docId), deletePost/deleteThankYouPost 래퍼, showDeleteConfirmDialog, approveThankYouPost |
+| `lib/core/services/gs_url_resolver.dart` | gs:// URL → FirebaseStorage getDownloadURL() HTTPS 변환. 메모리 캐시로 동일 URL 재요청 방지. |
+| `lib/shared/widgets/cached_network_image_gs.dart` | gs:///https 공통 CachedNetworkImage 래퍼(CachedNetworkImageGs). resolveImageUrl 후 CachedNetworkImage로 렌더. |
 
 ---
 
@@ -180,4 +183,4 @@
 
 ---
 
-*마지막 갱신: 관리자 사이드바 '데이터베이스 구조' → '버그 제보 관리'. AdminBugReportManagementSection(StreamBuilder, 카드, 해결 완료 버튼).*
+*마지막 갱신: Firestore imageUrls gs:// 지원 — gs_url_resolver, CachedNetworkImageGs 추가. ExploreScreen·PostDetailScreen 이미지에 CachedNetworkImageGs 적용.*

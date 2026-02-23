@@ -47,6 +47,15 @@ Future<int> getWithPayBalance(String userId) async {
   }
 }
 
+/// 유효한 userId인지 검사 (null·빈값·가짜 데이터 차단)
+bool isValidWithPayUserId(String? userId) {
+  if (userId == null || userId.isEmpty) return false;
+  final t = userId.trim();
+  if (t.isEmpty) return false;
+  if (t == '0' || t == '0000' || t.length < 2) return false;
+  return true;
+}
+
 /// 사용자 잔액 실시간 스트림 (마이페이지·후원 화면 반영용). userId당 1회만 구독·로그.
 /// 로그아웃 후에는 스트림을 반환하지 않음 (세션 부활 방지)
 Stream<DocumentSnapshot<Map<String, dynamic>>> withPayBalanceStream(String userId) {
@@ -56,26 +65,27 @@ Stream<DocumentSnapshot<Map<String, dynamic>>> withPayBalanceStream(String userI
     return const Stream.empty();
   }
   
-  // userId가 null이거나 빈 문자열이면 빈 스트림 반환
-  if (userId.isEmpty) {
-    debugPrint('[WITHPAY] : 잔액 스트림 차단 - userId가 비어있음');
+  // userId 유효성 가드: null·빈값·가짜(0, 0000 등) 차단
+  if (!isValidWithPayUserId(userId)) {
+    debugPrint('[WITHPAY] : 잔액 스트림 차단 - 유효하지 않은 userId');
     return const Stream.empty();
   }
+  final uid = userId.trim();
   
   // 캐시에 이미 있으면 기존 스트림 반환 (중복 구독 방지)
-  if (_balanceStreamCache.containsKey(userId)) {
-    debugPrint('[WITHPAY] : 잔액 스트림 캐시 사용 — userId=$userId');
-    return _balanceStreamCache[userId]!;
+  if (_balanceStreamCache.containsKey(uid)) {
+    debugPrint('[WITHPAY] : 잔액 스트림 캐시 사용 — userId=$uid');
+    return _balanceStreamCache[uid]!;
   }
   
   // 새 스트림 생성 및 캐시에 저장
   final stream = _firestore
       .collection(FirestoreCollections.users)
-      .doc(userId)
+      .doc(uid)
       .snapshots();
   
-  _balanceStreamCache[userId] = stream;
-  debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$userId (새 구독)');
+  _balanceStreamCache[uid] = stream;
+  debugPrint('[WITHPAY] : 잔액 스트림 구독 — userId=$uid (새 구독)');
   return stream;
 }
 

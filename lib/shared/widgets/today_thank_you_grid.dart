@@ -1,7 +1,6 @@
 // 목적: 투데이 탭 '환자들의 감사편지' — today_thank_you 실시간 스트림, 2열 그리드, 카드 탭 시 상세 화면.
 // 흐름: initState에서 스트림을 변수에 캐시 (중복 구독 방지).
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
@@ -14,6 +13,7 @@ import '../../core/services/comment_service.dart';
 import '../../core/services/like_service.dart';
 import '../../features/main/thank_you_detail_screen.dart';
 import 'brand_placeholder.dart';
+import 'cached_network_image_gs.dart';
 
 class TodayThankYouGrid extends StatefulWidget {
   const TodayThankYouGrid({
@@ -167,7 +167,7 @@ class _ThankYouGridCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                   child: firstUrl != null && firstUrl.isNotEmpty
-                      ? CachedNetworkImage(
+                      ? CachedNetworkImageGs(
                           imageUrl: firstUrl,
                           fit: BoxFit.cover,
                           placeholder: (_, __) => _warmPlaceholder(),

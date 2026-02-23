@@ -14,7 +14,7 @@ import '../../core/services/like_service.dart';
 import '../../core/services/admin_service.dart' show showDeletePostConfirmDialog, deletePost;
 import '../../features/post/post_detail_screen.dart';
 import 'brand_placeholder.dart';
-import 'shimmer_image.dart';
+import 'cached_network_image_gs.dart';
 import 'user_profile_avatar.dart';
 
 class StoryFeedCard extends StatelessWidget {
@@ -124,11 +124,21 @@ class StoryFeedCard extends StatelessWidget {
             AspectRatio(
               aspectRatio: 16 / 9,
               child: firstImageUrl != null && firstImageUrl.isNotEmpty
-                  ? ShimmerImage(
+                  ? CachedNetworkImageGs(
                       imageUrl: firstImageUrl,
                       fit: BoxFit.cover,
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                      errorPlaceholderEmoji: isDonationRequest ? '🤝' : '📄',
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
+                      ),
+                      fadeInDuration: const Duration(milliseconds: 280),
+                      placeholder: (_, __) => _skeletonBox(
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(16),
+                          bottomRight: Radius.circular(16),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => _placeholderImage(isDonationRequest),
                     )
                   : _placeholderImage(isDonationRequest),
             ),
@@ -358,6 +368,18 @@ class StoryFeedCard extends StatelessWidget {
     if (v is num) return v.toInt();
     if (v != null) return int.tryParse(v.toString()) ?? 0;
     return 0;
+  }
+
+  /// 로딩 중 스켈레톤: 연한 회색 박스.
+  static Widget _skeletonBox({BorderRadius? borderRadius}) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.inactiveBackground.withValues(alpha: 0.6),
+        borderRadius: borderRadius,
+      ),
+    );
   }
 
   Widget _placeholderImage(bool isDonationRequest) {

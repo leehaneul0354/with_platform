@@ -8,6 +8,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_post_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/cached_network_image_gs.dart';
 import '../admin/admin_post_detail_screen.dart';
 import '../post/post_detail_screen.dart';
 
@@ -181,22 +182,35 @@ class _ExploreScreenState extends State<ExploreScreen> {
     List<QueryDocumentSnapshot<Map<String, dynamic>>> postDocs,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> adminDocs,
   ) {
+    // 1) 일반 게시물 섞기 (매번 랜덤 순서)
+    final shuffledPosts = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(postDocs)
+      ..shuffle();
+
+    // 2) 3~5개 간격으로 어드민 게시물 끼워넣기 (패턴: 3,4,5 반복)
     final result = <_GridItem>[];
     int adminIndex = 0;
-    const interval = 4; // 4개마다 어드민 1개 삽입 (3~5 사이)
+    final intervals = [3, 4, 5];
+    int intervalIdx = 0;
+    int sinceLastAdmin = 0;
 
-    for (int i = 0; i < postDocs.length; i++) {
-      result.add(_GridItem.post(postDocs[i]));
-      if ((i + 1) % interval == 0 && adminIndex < adminDocs.length) {
+    for (final post in shuffledPosts) {
+      result.add(_GridItem.post(post));
+      sinceLastAdmin++;
+
+      if (sinceLastAdmin >= intervals[intervalIdx] && adminIndex < adminDocs.length) {
         result.add(_GridItem.admin(adminDocs[adminIndex]));
         adminIndex++;
+        sinceLastAdmin = 0;
+        intervalIdx = (intervalIdx + 1) % intervals.length;
       }
     }
-    // 남은 어드민 게시물은 끝에 추가
+
+    // 남은 어드민 게시물은 리스트 끝에 추가 (뭉침 최소화는 위 루프에서 처리)
     while (adminIndex < adminDocs.length) {
       result.add(_GridItem.admin(adminDocs[adminIndex]));
       adminIndex++;
     }
+
     return result;
   }
 }
@@ -272,7 +286,7 @@ class _ExploreGridTile extends StatelessWidget {
             Container(
               color: AppColors.inactiveBackground.withValues(alpha: 0.5),
               child: item._imageUrl != null && item._imageUrl!.isNotEmpty
-                  ? CachedNetworkImage(
+                  ? CachedNetworkImageGs(
                       imageUrl: item._imageUrl!,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => const Center(

@@ -13,6 +13,7 @@ import '../../core/services/donation_service.dart';
 import '../../core/services/with_pay_service.dart';
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/cached_network_image_gs.dart';
 import '../../shared/widgets/comment_section.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../auth/login_screen.dart';
@@ -226,10 +227,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
-                              child: CachedNetworkImage(
+                              child: CachedNetworkImageGs(
                                 imageUrl: url,
                                 fit: BoxFit.contain,
                                 width: double.infinity,
+                                borderRadius: BorderRadius.circular(16),
                                 placeholder: (_, __) => AspectRatio(
                                   aspectRatio: 16 / 9,
                                   child: BrandPlaceholder.forContent(

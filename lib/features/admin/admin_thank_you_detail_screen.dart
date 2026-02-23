@@ -1,7 +1,6 @@
 // 목적: 관리자 전용 감사 편지 상세 화면. 진입 시 admin 권한 재확인, 하단 [삭제]/[승인] 고정.
 // 흐름: AdminDashboard 감사 편지 리스트 탭 → 본 화면 → 권한 없으면 즉시 퇴장 → 이미지/환자명/내용/사용목적 표시 → 삭제 또는 승인.
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
@@ -10,6 +9,7 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/cached_network_image_gs.dart';
 import '../../shared/widgets/comment_section.dart';
 
 /// 관리자 전용 컬러 (AdminDashboard와 동일)
@@ -232,10 +232,11 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
+                      child: CachedNetworkImageGs(
                         imageUrl: url,
                         fit: BoxFit.contain,
                         width: double.infinity,
+                        borderRadius: BorderRadius.circular(12),
                         placeholder: (_, __) => Container(
                           height: 120,
                           color: _AdminTheme.slate,

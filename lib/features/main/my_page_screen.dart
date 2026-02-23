@@ -441,20 +441,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 ),
               )
             else
-              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: withPayBalanceStream(userId),
-                builder: (context, snapshot) {
-                  final balance = balanceFromSnapshot(snapshot.data);
-                  return Text(
-                    '${_formatWithPayBalance(balance)}원',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.coral,
-                    ),
-                  );
-                },
-              ),
+              _WithPayBalanceDisplay(userId: userId),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
           ],
@@ -1446,6 +1433,64 @@ class _LogoutButton extends StatelessWidget {
         ),
         child: const Text('로그아웃'),
       ),
+    );
+  }
+}
+
+/// WITH Pay 잔액 표시. 500ms 지연 구독으로 피드 스트림과 Firestore 엔진 충돌 방지.
+/// 대기 중에는 0원 표시(빈 화면 방지).
+class _WithPayBalanceDisplay extends StatefulWidget {
+  const _WithPayBalanceDisplay({required this.userId});
+
+  final String userId;
+
+  @override
+  State<_WithPayBalanceDisplay> createState() => _WithPayBalanceDisplayState();
+}
+
+class _WithPayBalanceDisplayState extends State<_WithPayBalanceDisplay> {
+  bool _subscriptionReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _subscriptionReady = true);
+    });
+  }
+
+  static String _format(int value) {
+    if (value >= 10000) return '${value ~/ 10000}만';
+    return value.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_subscriptionReady) {
+      return Text(
+        '0원',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.coral,
+        ),
+      );
+    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: withPayBalanceStream(widget.userId),
+      builder: (context, snapshot) {
+        final balance = snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData
+            ? 0
+            : balanceFromSnapshot(snapshot.data);
+        return Text(
+          '${_format(balance)}원',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.coral,
+          ),
+        );
+      },
     );
   }
 }

@@ -1,7 +1,6 @@
 // 목적: 투데이 감사 편지 카드 탭 시 상세 내용 표시. 제목·환자명·본문·이미지(또는 플레이스홀더).
 // 흐름: TodayThankYouGrid 카드 탭 → 본 화면(풀스크린 또는 모달). 관리자일 경우 하단 삭제 버튼 노출.
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
@@ -12,6 +11,7 @@ import '../../core/constants/firestore_keys.dart';
 import '../../core/services/admin_service.dart' show deleteDocument, deleteThankYouPost, showDeleteConfirmDialog;
 import '../../core/services/like_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/cached_network_image_gs.dart';
 import '../../shared/widgets/login_prompt_dialog.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
@@ -135,10 +135,11 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
+                      child: CachedNetworkImageGs(
                         imageUrl: url,
                         fit: BoxFit.contain,
                         width: double.infinity,
+                        borderRadius: BorderRadius.circular(12),
                         placeholder: (_, __) => AspectRatio(
                           aspectRatio: 16 / 9,
                           child: Container(

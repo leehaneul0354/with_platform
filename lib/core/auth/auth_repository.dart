@@ -457,9 +457,10 @@ class AuthRepository extends ChangeNotifier {
       // 현재 유저로 설정
       await setCurrentUser(user);
       
-      // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화
-      initializeWithPayService();
+      // 로그인 성공 시 스트림 순차 로딩: 피드 먼저, 500ms 후 WITH Pay (Firestore ca9 충돌 방지)
       initializeApprovedPostsStream();
+      await Future.delayed(const Duration(milliseconds: 500));
+      initializeWithPayService();
       
       // 상태 변화 즉시 알림 (로그인 루프 방지)
       notifyListeners();
@@ -484,18 +485,19 @@ class AuthRepository extends ChangeNotifier {
     final admin = TestAccounts.resolveAdmin(id, password);
     if (admin != null) { 
       await setCurrentUser(admin);
-      // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화 (스트림 구독 준비)
-      initializeWithPayService();
+      // 스트림 순차 로딩: 피드 먼저, 500ms 후 WITH Pay (Firestore ca9 방지)
       initializeApprovedPostsStream();
+      await Future.delayed(const Duration(milliseconds: 500));
+      initializeWithPayService();
       return admin; 
     }
 
     final testUser = TestAccounts.resolveTestUser(id, password);
     if (testUser != null) { 
       await setCurrentUser(testUser);
-      // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화 (스트림 구독 준비)
-      initializeWithPayService();
       initializeApprovedPostsStream();
+      await Future.delayed(const Duration(milliseconds: 500));
+      initializeWithPayService();
       return testUser; 
     }
 
@@ -505,9 +507,9 @@ class AuthRepository extends ChangeNotifier {
       final user = UserModel.fromJson(data);
       if (user.password == password) {
         await setCurrentUser(user);
-        // 로그인 성공 시 모든 Firestore 스트림 서비스 초기화 (스트림 구독 준비)
-        initializeWithPayService();
         initializeApprovedPostsStream();
+        await Future.delayed(const Duration(milliseconds: 500));
+        initializeWithPayService();
         return user;
       }
     }

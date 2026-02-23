@@ -1,5 +1,5 @@
-// 목적: 환자 투병기록 작성. [일반 기록]과 [후원 요청] 모드 분리, ImgBB 업로드 후 Firestore 저장.
-// 흐름: PostCreateChoiceScreen → 본 화면 → 상단 모드 선택 → 제목·내용·(후원 시 추가 필드)·사진 → 저장.
+// 목적: 환자 투병기록 작성. [일반 기록]과 [후원 요청] 모드 분리, Firebase Storage 업로드 후 Firestore 저장.
+// 흐름: PostCreateChoiceScreen → 본 화면 → 상단 모드 선택 → 제목·내용·(후원 시 추가 필드)·사진 → Storage 업로드 → posts 저장.
 
 import 'dart:typed_data';
 
@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
-import '../../core/services/imgbb_upload.dart';
+import '../../core/services/post_storage_service.dart';
 import '../../shared/widgets/brand_placeholder.dart';
 
 class PostUploadScreen extends StatefulWidget {
@@ -119,18 +119,27 @@ class _PostUploadScreenState extends State<PostUploadScreen> {
 
     try {
       final imageUrls = <String>[];
-      for (var i = 0; i < _pickedFiles.length; i++) {
-        final url = await uploadImageToImgBB(_pickedFiles[i]);
-        if (url != null) imageUrls.add(url);
-      }
-      if (_pickedFiles.isNotEmpty && imageUrls.isEmpty) {
-        setState(() => _isSubmitting = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지 업로드에 실패했습니다. 다시 시도해 주세요.')),
-          );
+
+      // 이미지가 있는 경우: 하나라도 실패하면 전체 업로드/저장 취소 (트랜잭션처럼 동작)
+      if (_pickedFiles.isNotEmpty) {
+        bool uploadFailed = false;
+        for (var i = 0; i < _pickedFiles.length; i++) {
+          final url = await uploadPostImage(_pickedFiles[i]);
+          if (url == null) {
+            uploadFailed = true;
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('이미지 업로드에 실패했습니다. 다시 시도해 주세요. (이미지 ${i + 1})')),
+              );
+            }
+            break;
+          }
+          imageUrls.add(url);
         }
-        return;
+        if (uploadFailed) {
+          setState(() => _isSubmitting = false);
+          return;
+        }
       }
 
       final isMoney = _fundingType == FirestorePostKeys.fundingTypeMoney;

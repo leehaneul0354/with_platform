@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -27,34 +28,25 @@ void main() async {
     // Firebase 초기화 실패 시에도 앱은 계속 실행 (에러 페이지 표시 가능)
   }
 
-  // Firestore 설정: 웹 환경 ca9·b815 에러 방지 (IndexedDB 캐시 충돌이 주원인)
-  // persistenceEnabled: false 필수 — 웹에서 IndexedDB 캐시 충돌 방지
-  try {
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: false,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
-    debugPrint('[SYSTEM] : Firestore 설정 - persistenceEnabled: false (웹 ca9/b815 방지)');
-  } catch (e) {
-    debugPrint('[SYSTEM] : Firestore 설정 실패 - $e');
-    // 설정 실패 시에도 기본 설정으로 계속 진행
+  // Firestore 설정: 웹 환경(kIsWeb)에서만 ca9·b815 방지 (IndexedDB 캐시 충돌)
+  if (kIsWeb) {
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: false,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+      debugPrint('[SYSTEM] : Firestore 설정 - persistenceEnabled: false (웹 ca9/b815 방지)');
+    } catch (e) {
+      debugPrint('[SYSTEM] : Firestore 설정 실패 - $e');
+    }
   }
 
-  // WITH Pay 서비스 초기화 (스트림 중복 구독 방지)
-  try {
-    initializeWithPayService();
-    debugPrint('[SYSTEM] : WITH Pay 서비스 초기화 완료');
-  } catch (e) {
-    debugPrint('[SYSTEM] : WITH Pay 서비스 초기화 실패 - $e');
-  }
-  
-  // 피드 스트림 초기화 (스트림 중복 구독 방지)
+  // 스트림 순차 로딩: 피드 먼저, 500ms 후 WITH Pay (Firestore 웹 스트림 엔진 충돌 방지)
   try {
     initializeApprovedPostsStream();
     debugPrint('[SYSTEM] : 피드 스트림 초기화 완료');
   } catch (e) {
     debugPrint('[SYSTEM] : 피드 스트림 초기화 실패 - $e');
-    // 초기화 실패 시 재시도
     await Future.delayed(const Duration(milliseconds: 500));
     try {
       initializeApprovedPostsStream();
@@ -62,6 +54,13 @@ void main() async {
     } catch (e2) {
       debugPrint('[SYSTEM] : 피드 스트림 초기화 재시도 실패 - $e2');
     }
+  }
+  await Future.delayed(const Duration(milliseconds: 500));
+  try {
+    initializeWithPayService();
+    debugPrint('[SYSTEM] : WITH Pay 서비스 초기화 완료');
+  } catch (e) {
+    debugPrint('[SYSTEM] : WITH Pay 서비스 초기화 실패 - $e');
   }
   
   try {

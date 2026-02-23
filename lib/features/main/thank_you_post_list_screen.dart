@@ -8,6 +8,7 @@ import '../../core/auth/auth_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/cached_network_image_gs.dart';
 import 'thank_you_letter_upload_screen.dart';
 
 class ThankYouPostListScreen extends StatelessWidget {
@@ -287,12 +288,13 @@ class _PostCard extends StatelessWidget {
     if (url != null && url.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          url,
+        child: CachedNetworkImageGs(
+          imageUrl: url,
           width: 72,
           height: 72,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder(),
+          borderRadius: BorderRadius.circular(8),
+          errorWidget: (_, __, ___) => _placeholder(),
         ),
       );
     }

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../features/post/post_detail_screen.dart';
+import '../../core/services/gs_url_resolver.dart';
 import 'story_feed_card.dart';
 import 'shimmer_placeholder.dart';
 
@@ -183,6 +184,8 @@ class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
       _loadTimeout = false;
       clearApprovedPostsStreamCache();
       initializeApprovedPostsStream(force: true);
+      // gs:// → HTTPS 변환 캐시도 함께 초기화하여 잘못된 URL이 재사용되지 않도록 함.
+      clearResolvedImageUrlCache();
       debugPrint('[SYSTEM] : 피드 스트림(Sliver) 재시도 버튼 클릭 - 키: $_retryKey');
     });
   }
@@ -298,11 +301,16 @@ class _ApprovedPostsFeedSliverState extends State<ApprovedPostsFeedSliver> {
         return SliverPadding(
           padding: const EdgeInsets.only(top: 8, bottom: 24),
           sliver: SliverList(
+            key: ValueKey('approved_posts_sliver_list_$_retryKey'),
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 final doc = docs[index];
                 final data = doc.data() as Map<String, dynamic>? ?? {};
-                return StoryFeedCard(postId: doc.id, data: data);
+                return StoryFeedCard(
+                  key: ValueKey('feed_${doc.id}_$_retryKey'),
+                  postId: doc.id,
+                  data: data,
+                );
               },
               childCount: docs.length,
             ),
