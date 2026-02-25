@@ -56,16 +56,29 @@ Future<void> addDonation({
   }
 }
 
-/// platform_stats 문서 스트림 (실시간 표시용). 단일 구독만 유지해 Firestore assertion/중복 리스너 방지.
-Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedPlatformStatsStream;
-
-Stream<DocumentSnapshot<Map<String, dynamic>>> platformStatsStream() {
-  _cachedPlatformStatsStream ??= _firestore
-      .collection(FirestoreCollections.platformStats)
-      .doc(kPlatformStatsDocId)
-      .snapshots()
-      .asBroadcastStream();
-  return _cachedPlatformStatsStream!;
+/// platform_stats 단발 조회 (ca9 방지: 스트림 미사용). 문서 없거나 오류 시 (0, 0).
+Future<({int totalDonation, int totalSupporters})> getPlatformStats() async {
+  try {
+    final doc = await _firestore
+        .collection(FirestoreCollections.platformStats)
+        .doc(kPlatformStatsDocId)
+        .get();
+    if (!doc.exists) return (totalDonation: 0, totalSupporters: 0);
+    final data = doc.data();
+    if (data == null) return (totalDonation: 0, totalSupporters: 0);
+    final donation = data[PlatformStatsKeys.totalDonation];
+    final supporters = data[PlatformStatsKeys.totalSupporters];
+    final totalDonation = donation is int
+        ? donation
+        : (donation is num ? donation.toInt() : 0);
+    final totalSupporters = supporters is int
+        ? supporters
+        : (supporters is num ? supporters.toInt() : 0);
+    return (totalDonation: totalDonation, totalSupporters: totalSupporters);
+  } catch (e) {
+    debugPrint('[DONATION] : getPlatformStats 실패 — $e');
+    return (totalDonation: 0, totalSupporters: 0);
+  }
 }
 
 /// 테스트용 결제 시뮬레이션. 2초 대기 후 ① donations 문서 생성 ② platform_stats increment ③ post currentAmount increment.

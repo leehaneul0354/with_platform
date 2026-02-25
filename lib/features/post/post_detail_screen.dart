@@ -39,6 +39,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   static const Color _deleteRed = Color(0xFFE53935);
   bool _isPaymentLoading = false;
   late Map<String, dynamic> _data;
+  Future<_PostLikeInfo>? _likeInfoFuture;
 
   static const List<int> _amountPresets = [10000, 30000, 50000, 100000];
 
@@ -55,14 +56,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // 초기 데이터는 Explore/피드에서 전달된 widget.data 사용
     _data = Map<String, dynamic>.from(widget.data);
-    // Firestore 단건 조회로 최신 데이터 동기화 (스트림 중복 구독 방지, ca9 완화)
     _refreshPostData();
+    _likeInfoFuture = _loadLikeInfo();
   }
 
   Future<void> _refreshPostData() async {
     try {
+      await Future.delayed(const Duration(milliseconds: 100));
       final doc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.posts)
           .doc(widget.postId)
@@ -77,6 +78,111 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     } catch (e) {
       debugPrint('[PostDetail] Firestore get 실패 — $e');
     }
+  }
+
+  Future<_PostLikeInfo> _loadLikeInfo() async {
+    try {
+      final userId = AuthRepository.instance.currentUser?.id;
+      await Future.delayed(const Duration(milliseconds: 100));
+      final likesCollection = FirebaseFirestore.instance
+          .collection(FirestoreCollections.posts)
+          .doc(widget.postId)
+          .collection(FirestoreCollections.likes);
+      final snapshot = await likesCollection.get();
+      final docs = snapshot.docs;
+      final likeCount = docs.length;
+      final isLiked = userId != null &&
+          userId.isNotEmpty &&
+          docs.any((doc) {
+            final data = doc.data();
+            return data[LikeKeys.userId]?.toString() == userId;
+          });
+      return _PostLikeInfo(isLiked: isLiked, likeCount: likeCount);
+    } catch (e, st) {
+      debugPrint('[PostDetail] load like info 실패 — $e');
+      debugPrint('[PostDetail] $st');
+      rethrow;
+    }
+  }
+
+  Widget _buildLikeSection() {
+    _likeInfoFuture ??= _loadLikeInfo();
+    return FutureBuilder<_PostLikeInfo>(
+      future: _likeInfoFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: const [
+              Icon(Icons.favorite_border, color: AppColors.textSecondary),
+              SizedBox(width: 8),
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ],
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Row(
+            children: [
+              const Icon(Icons.favorite_border, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () {
+                  if (!mounted) return;
+                  setState(() {
+                    _likeInfoFuture = _loadLikeInfo();
+                  });
+                },
+                child: const Text('다시 시도'),
+              ),
+            ],
+          );
+        }
+
+        final likeInfo = snapshot.data ?? const _PostLikeInfo(isLiked: false, likeCount: 0);
+        final isLiked = likeInfo.isLiked;
+        final likeCount = likeInfo.likeCount;
+
+        return Row(
+          children: [
+            IconButton(
+              onPressed: () async {
+                final user = AuthRepository.instance.currentUser;
+                if (user == null) {
+                  if (!mounted) return;
+                  _showLoginSheet('좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.');
+                  return;
+                }
+                await toggleLike(
+                  postId: widget.postId,
+                  postType: 'post',
+                  userId: user.id,
+                );
+                if (!mounted) return;
+                setState(() {
+                  _likeInfoFuture = _loadLikeInfo();
+                });
+              },
+              icon: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? AppColors.coral : AppColors.textSecondary,
+              ),
+            ),
+            Text(
+              '$likeCount',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _onDonateTap() async {
@@ -351,57 +457,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               ),
                             ],
                             const SizedBox(height: 24),
-                            // 좋아요 버튼
-                            StreamBuilder<bool>(
-                              stream: isLikedStream(
-                                postId: widget.postId,
-                                postType: 'post',
-                                userId: AuthRepository.instance.currentUser?.id ?? '',
-                              ),
-                              builder: (context, likedSnapshot) {
-                                final isLiked = likedSnapshot.data ?? false;
-                                return StreamBuilder<int>(
-                                  stream: likeCountStream(
-                                    postId: widget.postId,
-                                    postType: 'post',
-                                  ),
-                                  builder: (context, countSnapshot) {
-                                    final likeCount = countSnapshot.data ?? 0;
-                                    return Row(
-                                      children: [
-                                        IconButton(
-                                          onPressed: () async {
-                                            final user = AuthRepository.instance.currentUser;
-                                            if (user == null) {
-                                              if (!mounted) return;
-                                              _showLoginSheet('좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.');
-                                              return;
-                                            }
-                                            await toggleLike(
-                                              postId: widget.postId,
-                                              postType: 'post',
-                                              userId: user.id,
-                                            );
-                                          },
-                                          icon: Icon(
-                                            isLiked ? Icons.favorite : Icons.favorite_border,
-                                            color: isLiked ? AppColors.coral : AppColors.textSecondary,
-                                          ),
-                                        ),
-                                        Text(
-                                          '$likeCount',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                );
-                              },
-                            ),
+                            // 좋아요 버튼 (스트림 1회 생성으로 중복 구독 방지)
+                            _buildLikeSection(),
                             const SizedBox(height: 24),
                             // 댓글 섹션
                             CommentSection(
@@ -558,6 +615,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       );
     }
   }
+}
+
+class _PostLikeInfo {
+  final bool isLiked;
+  final int likeCount;
+
+  const _PostLikeInfo({
+    required this.isLiked,
+    required this.likeCount,
+  });
 }
 
 /// 금액 선택 다이얼로그 — 프리셋 + 결제하기

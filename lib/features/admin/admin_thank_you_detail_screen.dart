@@ -1,6 +1,7 @@
 // 목적: 관리자 전용 감사 편지 상세 화면. 진입 시 admin 권한 재확인, 하단 [삭제]/[승인] 고정.
 // 흐름: AdminDashboard 감사 편지 리스트 탭 → 본 화면 → 권한 없으면 즉시 퇴장 → 이미지/환자명/내용/사용목적 표시 → 삭제 또는 승인.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/auth/user_model.dart';
@@ -40,6 +41,32 @@ class AdminThankYouDetailScreen extends StatefulWidget {
 class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
   bool _accessChecked = false;
   bool _isAdmin = false;
+  Future<_AdminThankYouLikeInfo>? _likeInfoFuture;
+
+  Future<_AdminThankYouLikeInfo> _loadLikeInfo() async {
+    try {
+      final userId = AuthRepository.instance.currentUser?.id;
+      await Future.delayed(const Duration(milliseconds: 100));
+      final likesCollection = FirebaseFirestore.instance
+          .collection(FirestoreCollections.thankYouPosts)
+          .doc(widget.docId)
+          .collection(FirestoreCollections.likes);
+      final snapshot = await likesCollection.get();
+      final docs = snapshot.docs;
+      final likeCount = docs.length;
+      final isLiked = userId != null &&
+          userId.isNotEmpty &&
+          docs.any((doc) {
+            final data = doc.data();
+            return data[LikeKeys.userId]?.toString() == userId;
+          });
+      return _AdminThankYouLikeInfo(isLiked: isLiked, likeCount: likeCount);
+    } catch (e, st) {
+      debugPrint('[AdminThankYouDetail] load like info 실패 — $e');
+      debugPrint('[AdminThankYouDetail] $st');
+      rethrow;
+    }
+  }
 
   Future<void> _checkAdmin() async {
     if (!mounted) return;
@@ -76,6 +103,7 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _likeInfoFuture = _loadLikeInfo();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAdmin());
   }
 
@@ -264,50 +292,79 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
                   )),
             ],
             const SizedBox(height: 24),
-            // 좋아요 버튼
-            StreamBuilder<bool>(
-              stream: isLikedStream(
-                postId: widget.docId,
-                postType: 'thank_you',
-                userId: AuthRepository.instance.currentUser?.id ?? '',
-              ),
-              builder: (context, likedSnapshot) {
-                final isLiked = likedSnapshot.data ?? false;
-                return StreamBuilder<int>(
-                  stream: likeCountStream(
-                    postId: widget.docId,
-                    postType: 'thank_you',
-                  ),
-                  builder: (context, countSnapshot) {
-                    final likeCount = countSnapshot.data ?? 0;
-                    return Row(
-                      children: [
-                        IconButton(
-                          onPressed: () async {
-                            final user = AuthRepository.instance.currentUser;
-                            if (user == null) return;
-                            await toggleLike(
-                              postId: widget.docId,
-                              postType: 'thank_you',
-                              userId: user.id,
-                            );
-                          },
-                          icon: Icon(
-                            isLiked ? Icons.favorite : Icons.favorite_border,
-                            color: isLiked ? Colors.red : _AdminTheme.light,
-                          ),
+            // 좋아요 버튼 (FutureBuilder + get() 단발 조회)
+            FutureBuilder<_AdminThankYouLikeInfo>(
+              future: _likeInfoFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Row(
+                    children: const [
+                      Icon(Icons.favorite_border, color: _AdminTheme.light),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(_AdminTheme.light),
                         ),
-                        Text(
-                          '$likeCount',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: _AdminTheme.light,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+                      ),
+                    ],
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Row(
+                    children: [
+                      const Icon(Icons.favorite_border, color: _AdminTheme.light),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () {
+                          if (!mounted) return;
+                          setState(() {
+                            _likeInfoFuture = _loadLikeInfo();
+                          });
+                        },
+                        child: const Text('다시 시도'),
+                      ),
+                    ],
+                  );
+                }
+
+                final likeInfo = snapshot.data ?? const _AdminThankYouLikeInfo(isLiked: false, likeCount: 0);
+                final isLiked = likeInfo.isLiked;
+                final likeCount = likeInfo.likeCount;
+
+                return Row(
+                  children: [
+                    IconButton(
+                      onPressed: () async {
+                        final user = AuthRepository.instance.currentUser;
+                        if (user == null) return;
+                        await toggleLike(
+                          postId: widget.docId,
+                          postType: 'thank_you',
+                          userId: user.id,
+                        );
+                        if (!mounted) return;
+                        setState(() {
+                          _likeInfoFuture = _loadLikeInfo();
+                        });
+                      },
+                      icon: Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                        color: isLiked ? Colors.red : _AdminTheme.light,
+                      ),
+                    ),
+                    Text(
+                      '$likeCount',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: _AdminTheme.light,
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -399,4 +456,14 @@ class _AdminThankYouDetailScreenState extends State<AdminThankYouDetailScreen> {
       ),
     );
   }
+}
+
+class _AdminThankYouLikeInfo {
+  final bool isLiked;
+  final int likeCount;
+
+  const _AdminThankYouLikeInfo({
+    required this.isLiked,
+    required this.likeCount,
+  });
 }

@@ -22,6 +22,9 @@ class AdminPostDetailScreen extends StatelessWidget {
   String? get _imageUrl {
     final v = data[AdminPostKeys.imageUrl]?.toString();
     debugPrint('[AdminPostDetail] raw imageUrl: $v');
+    if (v == null || v.isEmpty) {
+      debugPrint('[AdminPostDetail] imageUrl 비어 있음 — keys=${data.keys}, raw=${data[AdminPostKeys.imageUrl]}');
+    }
     return (v != null && v.isNotEmpty) ? v : null;
   }
 

@@ -33,6 +33,28 @@ class CommentSection extends StatefulWidget {
 class _CommentSectionState extends State<CommentSection> {
   final TextEditingController _commentController = TextEditingController();
   bool _isSubmitting = false;
+  /// 스트림 중복 구독 방지: initState에서 1회만 생성, didUpdateWidget에서 postId/postType 변경 시만 교체.
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _commentsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _commentsStream = commentsStream(
+      postId: widget.postId,
+      postType: widget.postType,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant CommentSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.postId != widget.postId || oldWidget.postType != widget.postType) {
+      _commentsStream = commentsStream(
+        postId: widget.postId,
+        postType: widget.postType,
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -137,12 +159,9 @@ class _CommentSectionState extends State<CommentSection> {
             ],
           ),
         ),
-        // 댓글 리스트
+        // 댓글 리스트 (캐시된 스트림 1개만 구독)
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: commentsStream(
-            postId: widget.postId,
-            postType: widget.postType,
-          ),
+          stream: _commentsStream ?? const Stream.empty(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -154,9 +173,27 @@ class _CommentSectionState extends State<CommentSection> {
             if (snapshot.hasError) {
               return Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(
-                  '댓글을 불러오는 중 오류가 발생했습니다.',
-                  style: TextStyle(color: Colors.red.shade700),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '댓글을 불러오는 중 오류가 발생했습니다.',
+                      style: TextStyle(color: Colors.red.shade700),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _commentsStream = commentsStream(
+                            postId: widget.postId,
+                            postType: widget.postType,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('다시 시도'),
+                    ),
+                  ],
                 ),
               );
             }

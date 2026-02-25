@@ -11,7 +11,7 @@ import '../../core/util/responsive_util.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/widgets/curved_yellow_header.dart';
 import '../../shared/widgets/approved_posts_feed.dart';
-import '../../shared/widgets/platform_stats_card.dart';
+import '../../shared/widgets/hope_message_card.dart';
 import '../../shared/widgets/today_feed_toggle.dart';
 import '../../shared/widgets/bottom_navigation.dart';
 import '../../shared/widgets/donor_rank_list.dart';
@@ -387,11 +387,7 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
             ),
           Transform.translate(
             offset: const Offset(0, -50),
-            child: PlatformStatsCard(
-              subtitle: _isLoggedIn
-                  ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
-                  : '반갑습니다',
-            ),
+            child: const HopeMessageCard(),
           ),
           Expanded(
             child: MainContentDesktop(
@@ -467,13 +463,9 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
                     ),
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: PlatformStatsCard(
-                  subtitle: _isLoggedIn
-                      ? '언제 어디서나 간편하게 참여할 수 있는 착한 후원 시스템'
-                      : '반갑습니다',
-                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: HopeMessageCard(),
               ),
               const SizedBox(height: 8),
               TodayFeedToggle(

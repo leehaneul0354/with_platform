@@ -300,19 +300,12 @@ class _DashboardContentState extends State<_DashboardContent> {
           if (!_statsStreamReady)
             const Center(child: CircularProgressIndicator())
           else
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: platformStatsStream(),
+            FutureBuilder<({int totalDonation, int totalSupporters})>(
+              future: getPlatformStats(),
               builder: (context, statsSnapshot) {
-                int totalDonation = 0;
-                int totalSupporters = 0;
-                
-                if (statsSnapshot.hasData && statsSnapshot.data!.exists) {
-                  final data = statsSnapshot.data!.data();
-                  totalDonation = (data?[PlatformStatsKeys.totalDonation] as num?)?.toInt() ?? 0;
-                  totalSupporters = (data?[PlatformStatsKeys.totalSupporters] as num?)?.toInt() ?? 0;
-                }
+                final totalDonation = statsSnapshot.data?.totalDonation ?? 0;
+                final totalSupporters = statsSnapshot.data?.totalSupporters ?? 0;
 
-                // 두 번째 스트림은 준비 완료 후에만 시작
                 if (!_usersStreamReady) {
                   return const Center(child: CircularProgressIndicator());
                 }

@@ -36,6 +36,40 @@ class ThankYouDetailScreen extends StatefulWidget {
 class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
   bool _isAdmin = false;
   bool _adminChecked = false;
+  Future<_ThankYouLikeInfo>? _likeInfoFuture;
+  String? _likeTargetPostId;
+
+  String? _computeLikeTargetPostId() {
+    final postId = widget.data[ThankYouPostKeys.postId]?.toString();
+    final targetPostId = widget.todayDocId ?? postId;
+    if (targetPostId == null || targetPostId.isEmpty) return null;
+    return targetPostId;
+  }
+
+  Future<_ThankYouLikeInfo> _loadLikeInfo(String postId) async {
+    try {
+      final userId = AuthRepository.instance.currentUser?.id;
+      await Future.delayed(const Duration(milliseconds: 100));
+      final likesCollection = FirebaseFirestore.instance
+          .collection(FirestoreCollections.thankYouPosts)
+          .doc(postId)
+          .collection(FirestoreCollections.likes);
+      final snapshot = await likesCollection.get();
+      final docs = snapshot.docs;
+      final likeCount = docs.length;
+      final isLiked = userId != null &&
+          userId.isNotEmpty &&
+          docs.any((doc) {
+            final data = doc.data();
+            return data[LikeKeys.userId]?.toString() == userId;
+          });
+      return _ThankYouLikeInfo(isLiked: isLiked, likeCount: likeCount);
+    } catch (e, st) {
+      debugPrint('[ThankYouDetail] load like info 실패 — $e');
+      debugPrint('[ThankYouDetail] $st');
+      rethrow;
+    }
+  }
 
   Future<void> _checkAdmin() async {
     if (!mounted) return;
@@ -65,7 +99,114 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _likeTargetPostId = _computeLikeTargetPostId();
+    if (_likeTargetPostId != null) {
+      _likeInfoFuture = _loadLikeInfo(_likeTargetPostId!);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAdmin());
+  }
+
+  @override
+  void didUpdateWidget(covariant ThankYouDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldPostId = oldWidget.data[ThankYouPostKeys.postId]?.toString();
+    final newPostId = widget.data[ThankYouPostKeys.postId]?.toString();
+    final oldTarget = oldWidget.todayDocId ?? oldPostId ?? '';
+    final newTarget = widget.todayDocId ?? newPostId ?? '';
+    if (oldTarget != newTarget) {
+      _likeTargetPostId = _computeLikeTargetPostId();
+      if (_likeTargetPostId != null) {
+        _likeInfoFuture = _loadLikeInfo(_likeTargetPostId!);
+      }
+    }
+  }
+
+  Widget _buildLikeSection(String postIdFallback) {
+    final targetPostId = _likeTargetPostId ?? widget.todayDocId ?? postIdFallback;
+    if (targetPostId.isEmpty) return const SizedBox.shrink();
+    _likeInfoFuture ??= _loadLikeInfo(targetPostId);
+    return FutureBuilder<_ThankYouLikeInfo>(
+      future: _likeInfoFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: const [
+              Icon(Icons.favorite_border, color: AppColors.textSecondary),
+              SizedBox(width: 8),
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ],
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Row(
+            children: [
+              const Icon(Icons.favorite_border, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () {
+                  if (!mounted) return;
+                  setState(() {
+                    _likeInfoFuture = _loadLikeInfo(targetPostId);
+                  });
+                },
+                child: const Text('다시 시도'),
+              ),
+            ],
+          );
+        }
+
+        final likeInfo = snapshot.data ?? const _ThankYouLikeInfo(isLiked: false, likeCount: 0);
+        final isLiked = likeInfo.isLiked;
+        final likeCount = likeInfo.likeCount;
+
+        return Row(
+          children: [
+            IconButton(
+              onPressed: () async {
+                final user = AuthRepository.instance.currentUser;
+                if (user == null) {
+                  if (!mounted) return;
+                  LoginPromptDialog.showAsBottomSheet(
+                    context,
+                    title: '로그인이 필요합니다',
+                    content: '좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.',
+                    onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+                    onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
+                  );
+                  return;
+                }
+                await toggleLike(
+                  postId: targetPostId,
+                  postType: 'thank_you',
+                  userId: user.id,
+                );
+                if (!mounted) return;
+                setState(() {
+                  _likeInfoFuture = _loadLikeInfo(targetPostId);
+                });
+              },
+              icon: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? AppColors.coral : AppColors.textSecondary,
+              ),
+            ),
+            Text(
+              '$likeCount',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -170,73 +311,10 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
                 ),
               ),
             ),
-            // 좋아요 버튼
+            // 좋아요 버튼 (스트림 1회 생성으로 중복 구독 방지)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Builder(
-                builder: (context) {
-                  final targetPostId = widget.todayDocId ?? postId ?? '';
-                  if (targetPostId.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return StreamBuilder<bool>(
-                    stream: isLikedStream(
-                      postId: targetPostId,
-                      postType: 'thank_you',
-                      userId: AuthRepository.instance.currentUser?.id ?? '',
-                    ),
-                    builder: (context, likedSnapshot) {
-                      final isLiked = likedSnapshot.data ?? false;
-                      return StreamBuilder<int>(
-                        stream: likeCountStream(
-                          postId: targetPostId,
-                          postType: 'thank_you',
-                        ),
-                        builder: (context, countSnapshot) {
-                          final likeCount = countSnapshot.data ?? 0;
-                          return Row(
-                            children: [
-                              IconButton(
-                                onPressed: () async {
-                                  final user = AuthRepository.instance.currentUser;
-                                  if (user == null) {
-                                    if (!mounted) return;
-                                    LoginPromptDialog.showAsBottomSheet(
-                                      context,
-                                      title: '로그인이 필요합니다',
-                                      content: '좋아요를 누르시려면 로그인 또는 회원가입을 해 주세요.',
-                                      onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
-                                      onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
-                                    );
-                                    return;
-                                  }
-                                  await toggleLike(
-                                    postId: targetPostId,
-                                    postType: 'thank_you',
-                                    userId: user.id,
-                                  );
-                                },
-                                icon: Icon(
-                                  isLiked ? Icons.favorite : Icons.favorite_border,
-                                  color: isLiked ? AppColors.coral : AppColors.textSecondary,
-                                ),
-                              ),
-                              Text(
-                                '$likeCount',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
+              child: _buildLikeSection(postId ?? ''),
             ),
             const SizedBox(height: 16),
             // 관련 투병기록 섹션
@@ -406,10 +484,13 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
     }
 
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection(FirestoreCollections.posts)
-          .doc(relatedPostId)
-          .get(),
+      future: () async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        return FirebaseFirestore.instance
+            .collection(FirestoreCollections.posts)
+            .doc(relatedPostId)
+            .get();
+      }(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox.shrink(); // 로딩 중에는 표시하지 않음
@@ -559,4 +640,14 @@ class _ThankYouDetailScreenState extends State<ThankYouDetailScreen> {
       },
     );
   }
+}
+
+class _ThankYouLikeInfo {
+  final bool isLiked;
+  final int likeCount;
+
+  const _ThankYouLikeInfo({
+    required this.isLiked,
+    required this.likeCount,
+  });
 }

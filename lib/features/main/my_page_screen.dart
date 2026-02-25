@@ -41,6 +41,9 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class _MyPageScreenState extends State<MyPageScreen> {
+  /// WITH Pay 잔액 갱신 트리거 (충전 다이얼로그 닫은 뒤 등)
+  int _withPayRefreshTrigger = 0;
+
   @override
   void initState() {
     super.initState();
@@ -391,17 +394,18 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  /// 위드페이 가로형 카드 (노란 배경). 로그인 시 실시간 잔액 스트림, 탭 시 충전 다이얼로그.
+  /// 위드페이 가로형 카드 (노란 배경). 로그인 시 잔액 단발 조회, 탭 시 충전 다이얼로그·결제 후 잔액 갱신.
   Widget _buildWithPayCard(BuildContext context, String? userId) {
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (userId == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('로그인 후 충전할 수 있습니다.')),
           );
           return;
         }
-        showWithPayRechargeDialog(context, userId);
+        await showWithPayRechargeDialog(context, userId);
+        if (mounted) setState(() => _withPayRefreshTrigger++);
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
@@ -441,7 +445,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 ),
               )
             else
-              _WithPayBalanceDisplay(userId: userId),
+              _WithPayBalanceDisplay(userId: userId, refreshTrigger: _withPayRefreshTrigger),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
           ],
@@ -1437,25 +1441,37 @@ class _LogoutButton extends StatelessWidget {
   }
 }
 
-/// WITH Pay 잔액 표시. 500ms 지연 구독으로 피드 스트림과 Firestore 엔진 충돌 방지.
-/// 대기 중에는 0원 표시(빈 화면 방지).
+/// WITH Pay 잔액 표시. Future 단발 조회(getBalance). 페이지 진입·결제 직후·새로고침 시에만 갱신.
 class _WithPayBalanceDisplay extends StatefulWidget {
-  const _WithPayBalanceDisplay({required this.userId});
+  const _WithPayBalanceDisplay({required this.userId, required this.refreshTrigger});
 
   final String userId;
+  final int refreshTrigger;
 
   @override
   State<_WithPayBalanceDisplay> createState() => _WithPayBalanceDisplayState();
 }
 
 class _WithPayBalanceDisplayState extends State<_WithPayBalanceDisplay> {
-  bool _subscriptionReady = false;
+  Future<int>? _balanceFuture;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() => _subscriptionReady = true);
+    _balanceFuture = getBalance(widget.userId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _WithPayBalanceDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId || oldWidget.refreshTrigger != widget.refreshTrigger) {
+      _balanceFuture = getBalance(widget.userId);
+    }
+  }
+
+  void _refresh() {
+    setState(() {
+      _balanceFuture = getBalance(widget.userId);
     });
   }
 
@@ -1466,29 +1482,32 @@ class _WithPayBalanceDisplayState extends State<_WithPayBalanceDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_subscriptionReady) {
-      return Text(
-        '0원',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: AppColors.coral,
-        ),
-      );
-    }
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: withPayBalanceStream(widget.userId),
+    return FutureBuilder<int>(
+      future: _balanceFuture,
       builder: (context, snapshot) {
-        final balance = snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData
-            ? 0
-            : balanceFromSnapshot(snapshot.data);
-        return Text(
-          '${_format(balance)}원',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AppColors.coral,
-          ),
+        final balance = snapshot.data ?? 0;
+        final loading = snapshot.connectionState == ConnectionState.waiting;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              loading ? '…' : '${_format(balance)}원',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.coral,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18, color: AppColors.textSecondary),
+              onPressed: loading ? null : _refresh,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         );
       },
     );

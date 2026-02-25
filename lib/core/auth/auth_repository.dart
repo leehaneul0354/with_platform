@@ -5,10 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../constants/firestore_keys.dart';
+import '../services/nickname_sync_service.dart';
 import '../constants/test_accounts.dart';
 import '../constants/assets.dart';
 import '../util/birth_date_util.dart';
-import '../services/with_pay_service.dart';
 import '../../shared/widgets/approved_posts_feed.dart';
 import 'user_model.dart';
 
@@ -250,7 +250,16 @@ class AuthRepository extends ChangeNotifier {
   }
 
   Future<void> updateUser(UserModel user) async {
+    final oldNickname = _currentUser?.id == user.id ? _currentUser!.nickname : null;
     await _firestore.collection(FirestoreCollections.users).doc(user.id).update(user.toJson());
+    if (oldNickname != null && oldNickname != user.nickname) {
+      try {
+        await syncNicknameAcrossCollections(user.id, user.nickname);
+      } catch (e, st) {
+        debugPrint('🚩 [LOG] 닉네임 동기화 실패(유저 문서는 이미 반영됨): $e');
+        debugPrint('$st');
+      }
+    }
   }
 
   /// 온보딩 정보 업데이트 (생년월일, 회원 유형, 프로필 이미지)
@@ -457,10 +466,8 @@ class AuthRepository extends ChangeNotifier {
       // 현재 유저로 설정
       await setCurrentUser(user);
       
-      // 로그인 성공 시 스트림 순차 로딩: 피드 먼저, 500ms 후 WITH Pay (Firestore ca9 충돌 방지)
+      // 로그인 성공 시 피드 스트림만 초기화 (WITH Pay는 Future 단발 조회로 전환)
       initializeApprovedPostsStream();
-      await Future.delayed(const Duration(milliseconds: 500));
-      initializeWithPayService();
       
       // 상태 변화 즉시 알림 (로그인 루프 방지)
       notifyListeners();
@@ -485,10 +492,7 @@ class AuthRepository extends ChangeNotifier {
     final admin = TestAccounts.resolveAdmin(id, password);
     if (admin != null) { 
       await setCurrentUser(admin);
-      // 스트림 순차 로딩: 피드 먼저, 500ms 후 WITH Pay (Firestore ca9 방지)
       initializeApprovedPostsStream();
-      await Future.delayed(const Duration(milliseconds: 500));
-      initializeWithPayService();
       return admin; 
     }
 
@@ -496,8 +500,6 @@ class AuthRepository extends ChangeNotifier {
     if (testUser != null) { 
       await setCurrentUser(testUser);
       initializeApprovedPostsStream();
-      await Future.delayed(const Duration(milliseconds: 500));
-      initializeWithPayService();
       return testUser; 
     }
 
@@ -508,8 +510,6 @@ class AuthRepository extends ChangeNotifier {
       if (user.password == password) {
         await setCurrentUser(user);
         initializeApprovedPostsStream();
-        await Future.delayed(const Duration(milliseconds: 500));
-        initializeWithPayService();
         return user;
       }
     }
@@ -572,8 +572,7 @@ class AuthRepository extends ChangeNotifier {
     // 3단계: 메모리 캐시 재확인 및 강제 초기화 (이중 안전장치)
     _currentUser = null;
     
-    // 3-1단계: 모든 Firestore 스트림 캐시 완전 삭제 (세션 부활 방지 및 Firestore 스트림 충돌 방지)
-    clearWithPayStreamCache();
+    // 3-1단계: 피드 스트림 캐시 완전 삭제 (세션 부활 방지). WITH Pay는 Future 단발 조회로 캐시 없음.
     clearApprovedPostsStreamCache();
     debugPrint('🚩 [LOG] 모든 Firestore 스트림 캐시 완전 삭제 완료 (Firestore 스트림 충돌 방지)');
     
@@ -650,8 +649,7 @@ class AuthRepository extends ChangeNotifier {
       await prefs.remove('current_user');
       await prefs.remove('logged_in_user');
       
-      // 스트림 캐시 삭제
-      clearWithPayStreamCache();
+      // 피드 스트림 캐시 삭제
       clearApprovedPostsStreamCache();
       
       // 상태 변화 알림
