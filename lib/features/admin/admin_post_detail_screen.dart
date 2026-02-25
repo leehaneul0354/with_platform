@@ -1,12 +1,12 @@
 // 목적: 어드민 게시물 상세 — imageUrl, title, content, badgeText 표시. 하단 [관련 페이지로 이동하기]로 linkUrl 열기.
 // 흐름: 탐색 탭 어드민 카드 클릭 → 본 화면 → 버튼 클릭 시 url_launcher로 외부 링크.
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/firestore_keys.dart';
 import '../../shared/widgets/brand_placeholder.dart';
+import '../../shared/widgets/cached_network_image_gs.dart';
 
 /// 어드민 게시물 상세 — 일반 후원 게시물 상세와 톤·매너 통일. 하단만 '관련 페이지로 이동하기' 버튼.
 class AdminPostDetailScreen extends StatelessWidget {
@@ -21,6 +21,7 @@ class AdminPostDetailScreen extends StatelessWidget {
   String get _content => data[AdminPostKeys.content]?.toString() ?? '';
   String? get _imageUrl {
     final v = data[AdminPostKeys.imageUrl]?.toString();
+    debugPrint('[AdminPostDetail] raw imageUrl: $v');
     return (v != null && v.isNotEmpty) ? v : null;
   }
 
@@ -85,29 +86,34 @@ class AdminPostDetailScreen extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: CachedNetworkImage(
+                        child: CachedNetworkImageGs(
                           imageUrl: _imageUrl!,
                           fit: BoxFit.contain,
                           width: double.infinity,
+                          borderRadius: BorderRadius.circular(16),
+                          fadeInDuration: const Duration(milliseconds: 280),
                           placeholder: (_, __) => AspectRatio(
                             aspectRatio: 16 / 9,
                             child: BrandPlaceholder.forContent(
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          errorWidget: (_, __, ___) => Container(
-                            height: 200,
-                            decoration: BoxDecoration(
-                              color: AppColors.inactiveBackground.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: const Center(
-                                child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+                          errorWidget: (_, url, error) {
+                            debugPrint('[AdminPostDetail] 이미지 로드 실패 url=$url error=$error');
+                            return Container(
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: AppColors.inactiveBackground.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                            ),
-                          ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: const Center(
+                                  child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),

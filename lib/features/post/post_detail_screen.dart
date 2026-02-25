@@ -2,6 +2,7 @@
 // 흐름: 메인 피드 카드 탭 → 본 화면 → 관리자면 삭제 버튼 노출.
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_repository.dart';
@@ -37,6 +38,7 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
   static const Color _deleteRed = Color(0xFFE53935);
   bool _isPaymentLoading = false;
+  late Map<String, dynamic> _data;
 
   static const List<int> _amountPresets = [10000, 30000, 50000, 100000];
 
@@ -48,6 +50,33 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       onLoginTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
       onSignupTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 초기 데이터는 Explore/피드에서 전달된 widget.data 사용
+    _data = Map<String, dynamic>.from(widget.data);
+    // Firestore 단건 조회로 최신 데이터 동기화 (스트림 중복 구독 방지, ca9 완화)
+    _refreshPostData();
+  }
+
+  Future<void> _refreshPostData() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.posts)
+          .doc(widget.postId)
+          .get();
+      if (!mounted) return;
+      final data = doc.data();
+      if (data != null) {
+        setState(() {
+          _data = Map<String, dynamic>.from(data);
+        });
+      }
+    } catch (e) {
+      debugPrint('[PostDetail] Firestore get 실패 — $e');
+    }
   }
 
   Future<void> _onDonateTap() async {
@@ -173,20 +202,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget build(BuildContext context) {
     final user = AuthRepository.instance.currentUser;
     final isAdmin = user?.type == UserType.admin || user?.isAdmin == true;
-    final patientId = widget.data[FirestorePostKeys.patientId]?.toString() ?? '';
+    final patientId = _data[FirestorePostKeys.patientId]?.toString() ?? '';
     final isOwner = user != null && user.id == patientId;
     debugPrint('[SYSTEM] : PostDetailScreen 빌드 — isAdmin=$isAdmin, isOwner=$isOwner');
-    final title = widget.data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
-    final content = widget.data[FirestorePostKeys.content]?.toString() ?? '';
-    final patientName = widget.data[FirestorePostKeys.patientName]?.toString() ?? '-';
-    final fundingType = widget.data[FirestorePostKeys.fundingType]?.toString() ?? FirestorePostKeys.fundingTypeMoney;
-    final usagePurpose = (widget.data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim();
-    final imageUrls = widget.data[FirestorePostKeys.imageUrls] is List
-        ? (widget.data[FirestorePostKeys.imageUrls] as List).cast<String>()
+    final title = _data[FirestorePostKeys.title]?.toString() ?? '(제목 없음)';
+    final content = _data[FirestorePostKeys.content]?.toString() ?? '';
+    final patientName = _data[FirestorePostKeys.patientName]?.toString() ?? '-';
+    final fundingType = _data[FirestorePostKeys.fundingType]?.toString() ?? FirestorePostKeys.fundingTypeMoney;
+    final usagePurpose = (_data[FirestorePostKeys.usagePurpose]?.toString() ?? '').trim();
+    final rawImageField = _data[FirestorePostKeys.imageUrls];
+    final imageUrls = rawImageField is List
+        ? rawImageField
+            .map((e) => e?.toString() ?? '')
+            .where((s) => s.trim().isNotEmpty)
+            .cast<String>()
+            .toList()
         : <String>[];
-    final isDonationRequest = widget.data[FirestorePostKeys.isDonationRequest] == true ||
-        (widget.data[FirestorePostKeys.goalAmount] != null && (widget.data[FirestorePostKeys.goalAmount] as num) > 0) ||
-        ((widget.data[FirestorePostKeys.neededItems]?.toString() ?? '').trim().isNotEmpty);
+    debugPrint('[PostDetail] imageUrls: $imageUrls');
+    final isDonationRequest = _data[FirestorePostKeys.isDonationRequest] == true ||
+        (_data[FirestorePostKeys.goalAmount] != null && (_data[FirestorePostKeys.goalAmount] as num) > 0) ||
+        ((_data[FirestorePostKeys.neededItems]?.toString() ?? '').trim().isNotEmpty);
 
     return Stack(
       children: [
