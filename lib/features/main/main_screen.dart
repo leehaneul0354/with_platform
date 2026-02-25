@@ -40,6 +40,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with RouteAware {
   bool _isFeedSelected = true;
   int _bottomIndex = 0;
+  final GlobalKey _exploreKey = GlobalKey();
   /// 통신 지연/갱신 중에도 관리자 UI 유지. 로그아웃 시에만 false로 리셋.
   bool _lastKnownAdmin = false;
 
@@ -121,9 +122,27 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
       // 일반 유저 5탭 처리
       switch (index) {
         case 0: // 홈
-          setState(() => _bottomIndex = index);
+          setState(() => _bottomIndex = 0);
           break;
         case 1: // 탐색
+          if (_bottomIndex == 1) {
+            // 이미 탐색 탭인 상태에서 탐색 아이콘 다시 클릭: 순서 유지, 스크롤만 상단으로
+            final state = _exploreKey.currentState;
+            if (state != null) {
+              // _ExploreScreenState.scrollToTop() 호출 (타입은 private이므로 dynamic 사용)
+              // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+              (state as dynamic).scrollToTop();
+            }
+          } else {
+            // 다른 탭 → 탐색 탭 진입: 게시물 순서 새로 섞기 (refreshOrder) + 탭 전환
+            final state = _exploreKey.currentState;
+            if (state != null) {
+              // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+              (state as dynamic).refreshOrder();
+            }
+            setState(() => _bottomIndex = 1);
+          }
+          break;
         case 2: // 작성
         case 3: // 투데이
           setState(() => _bottomIndex = index);
@@ -326,7 +345,10 @@ class _MainScreenState extends State<MainScreen> with RouteAware {
         key: ValueKey(_isStreamTab0Ready),
         child: _buildHomeContent(),
       ),
-      ExploreScreen(streamEnabled: _isStreamTab1Ready),
+      ExploreScreen(
+        key: _exploreKey,
+        streamEnabled: _isStreamTab1Ready,
+      ),
       DiaryScreen(
         onLoginTap: _navigateToLogin,
         onSignupTap: _navigateToSignup,

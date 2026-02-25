@@ -22,8 +22,11 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends State<ExploreScreen>
+    with AutomaticKeepAliveClientMixin<ExploreScreen> {
   Stream<QuerySnapshot<Map<String, dynamic>>>? _exploreStream;
+  final ScrollController _scrollController = ScrollController();
+  List<_GridItem>? _mergedItems;
 
   @override
   void initState() {
@@ -49,8 +52,36 @@ class _ExploreScreenState extends State<ExploreScreen> {
         .snapshots();
   }
 
+  /// Explore 탭 재진입 시 게시물 순서를 새로 섞고 싶을 때 호출 (다른 탭→탐색으로 이동한 경우).
+  void refreshOrder() {
+    setState(() {
+      _mergedItems = null;
+    });
+  }
+
+  /// 이미 탐색 탭인 상태에서 탐색 아이콘을 다시 눌렀을 때 상단으로 스크롤.
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (!widget.streamEnabled || _exploreStream == null) {
       return Scaffold(
         appBar: AppBar(
@@ -109,10 +140,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
           stream: adminPostsStream(),
           builder: (context, adminSnapshot) {
             final adminDocs = adminSnapshot.data?.docs ?? [];
-            final merged = _mergeItems(postDocs, adminDocs);
+
+            // 게시물 순서는 상태에 한 번만 섞어서 저장하고, refreshOrder() 호출 시에만 다시 섞음.
+            if (_mergedItems == null) {
+              _mergedItems = _mergeItems(postDocs, adminDocs);
+            }
+            final merged = _mergedItems!;
 
             if (merged.isEmpty) {
               return CustomScrollView(
+                controller: _scrollController,
                 slivers: [
                   SliverAppBar(
                     pinned: true,
@@ -140,6 +177,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             }
 
             return CustomScrollView(
+              controller: _scrollController,
               slivers: [
                 SliverAppBar(
                   pinned: true,
